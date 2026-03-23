@@ -1,0 +1,28 @@
+# Model weights
+checkpoints/*.pt
+checkpoints/*.pth
+
+# Datasets
+data/raw/
+data/processed/
+
+# Training logs
+runs/
+logs/*.tfevents.*
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.eggs/
+
+# Environment
+venv/
+.env/
+*.env
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Mac
+.DS_Store
