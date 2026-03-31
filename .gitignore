@@ -26,3 +26,7 @@ venv/
 
 # Mac
 .DS_Store
+
+# Compiled docs / temp files
+docs/*.tmp
+docs/~$*.docx
