@@ -1,5 +1,4 @@
 """
-Configuration for ASFR experiments.
 All hyperparameters live here. Pass a Config instance to train/evaluate.
 """
 
@@ -10,12 +9,12 @@ from typing import Literal
 @dataclass
 class DataConfig:
     dataset: Literal["cifake", "deepdetect"] = "cifake"
-    cifake_root: str = "./data/raw/cifake"        
+    cifake_root: str = "./data/raw/cifake"
     deepdetect_root: str = "./data/raw/deepdetect"
-    image_size: int = 32         
+    image_size: int = 32
     batch_size: int = 64
     num_workers: int = 4
-    jpeg_aug_quality_range: tuple = (70, 90)   # JPEG compression augmentation range
+    jpeg_aug_quality_range: tuple = (70, 90)
 
     @property
     def data_root(self) -> str:
@@ -29,7 +28,7 @@ class FrequencyConfig:
     use_fftshift: bool = True      # CRITICAL: always True — moves DC to centre
     log_scale: bool = True         # log-magnitude of FFT spectrum
     srm_filters: bool = True       # prepend fixed SRM noise-residual filters
-    cleaner_filters: int = 3       # number of conv filters in degradation-aware cleaner 
+    cleaner_filters: int = 3       # number of conv filters in degradation-aware cleaner
 
 
 @dataclass
@@ -49,7 +48,9 @@ class LossConfig:
     # Auxiliary heads (CRITICAL — prevents gradient starvation of freq branch)
     use_auxiliary_heads: bool = True
     spatial_aux_weight: float = 0.3
-    freq_aux_weight: float = 0.5   # intentionally higher to compensate for weaker initial gradient
+    freq_aux_weight: float = 0.5       # intentionally higher — weaker initial gradient
+    # Cleaner reconstruction loss (real images only, joint training)
+    cleaner_recon_weight: float = 0.1  # weight on MAE reconstruction loss for cleaner
 
 
 @dataclass
@@ -62,7 +63,7 @@ class BackboneConfig:
         "vit_b_32",
     ] = "convnext_base"
     pretrained: bool = True
-    frozen: bool = False   
+    frozen: bool = False
 
 
 @dataclass
@@ -73,9 +74,9 @@ class TrainConfig:
     seed: int = 42
     checkpoint_dir: str = "./checkpoints"
     log_dir: str = "./logs"
-    results_dir: str = "./results"  
-    log_scalar_every_n_epochs: int = 1    # log fusion scalar/gate stats every N epochs
-    log_grad_norm_every_n_epochs: int = 5 # log freq branch gradient norms
+    results_dir: str = "./results"
+    log_scalar_every_n_epochs: int = 1
+    log_grad_norm_every_n_epochs: int = 5
 
 
 @dataclass

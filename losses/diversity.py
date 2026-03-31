@@ -1,6 +1,4 @@
 """
-losses/diversity.py — Entropy diversity regulariser for the gating mechanism.
-
 WHAT THE GATE IS
 ----------------
 In gating fusion mode, a small MLP (defined in models/fusion.py::GatingFusion)
@@ -81,7 +79,7 @@ class DiversityRegulariser(nn.Module):
             constant). Low when gate values are spread across [0, 1] (gate is
             genuinely adapting per image). Add this to your total training loss.
         """
-        # bin gate values into a soft histogram over [0, 1].
+        # Bin gate values into a soft histogram over [0, 1].
         # We use differentiable soft binning rather than torch.histc because
         # torch.histc produces integer counts with no gradient. We need gradients
         # to flow back through gate_values into the gating MLP — otherwise this
@@ -106,12 +104,12 @@ class DiversityRegulariser(nn.Module):
         bin_probs = soft_counts.sum(dim=0)      # (n_bins,)
         bin_probs = bin_probs / bin_probs.sum() # sums to 1.0
 
-        # compute entropy H = -sum(p * log(p)) in nats.
+        # Compute entropy H = -sum(p * log(p)) in nats.
         # Clamp before log to avoid log(0) = -inf for empty bins.
         # Empty bins contribute 0 to entropy.
         entropy = -(bin_probs * torch.log(bin_probs.clamp(min=1e-8))).sum()
 
-        # return the penalty. Because we minimise total loss, the model
+        # Return the penalty. Because we minimise total loss, the model
         # is pushed to maximise entropy (spread out gate values), which is what
         # we want. The penalty is high when entropy is low (gate is constant).
         return self.weight * (-entropy)
