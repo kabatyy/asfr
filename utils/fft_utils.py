@@ -9,7 +9,7 @@ def compute_log_fft(image: np.ndarray, fftshift: bool = True) -> np.ndarray:
  
     Args:
         image:    2D numpy array (H, W), single channel, float in [0, 1]
-        fftshift: Always True in practice — moves DC component to centre.
+        fftshift: Always True - moves DC component to centre.
  
     Returns:
         2D log-magnitude spectrum, same shape as input, values in [0, ~log(max)].
@@ -49,7 +49,7 @@ def normalise_spectrum(spectrum: torch.Tensor) -> torch.Tensor:
     """
     Normalise a spectrum tensor to zero mean and unit std per sample.
     Operates over the H and W dimensions so each image in the batch is
-    normalised independently — prevents batch statistics from leaking
+    normalised independently. This prevents batch statistics from leaking
     between samples during training.
  
     Args:

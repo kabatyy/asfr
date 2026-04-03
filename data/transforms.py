@@ -1,6 +1,6 @@
 """
 TRAINING AUGMENTATIONS 
-----------------------------------------------
+----------------------
 Inspired by the Random Degradation Simulator in:
   Cai, Ren, Chen & Lian (2025). "AI-Generated Image Detection in Degraded
   Scenarios." Advanced Intelligent Computing Technology and Applications,
@@ -15,11 +15,9 @@ robustness under real-world distribution shifts. The augmentations are:
   - Recompression         (resize down + back up) — simulates repeated uploads
   - Mixed combinations    (randomly apply 2+ degradations together)
 
-These are applied randomly at training time only. Test transforms are clean.
-
 The gate in the fusion module should learn to DOWN-weight the frequency branch
 for heavily degraded images (JPEG destroys spectral artifacts). The per-JPEG-
-quality accuracy metric in utils/metrics.py verifies this is happening.
+quality accuracy metric in utils/metrics.py should verify this is happening.
 
 """
 
@@ -89,7 +87,6 @@ class RandomRecompression:
     """
     Resize down then back up — simulates repeated upload/download cycles
     where images are rescaled by social media platforms.
-    Scale factor in [min_scale, max_scale] — e.g. 0.5 means halved then doubled.
     """
 
     def __init__(self, min_scale: float = 0.5, max_scale: float = 0.75):

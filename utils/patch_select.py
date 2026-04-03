@@ -29,16 +29,16 @@ We slide a window across the image and compute the local pixel variance at
 each position. The window with the lowest variance is the flattest region.
 That window's position is used to extract the patch.
  
-This is done on a single-channel (grayscale) version of the image for speed —
-we only need variance to find the flat region, not colour information.
+This is done on a single-channel (grayscale) version of the image for speed.
+We only need variance to find the flat region, not colour information.
  
-NOTE ON PATCH SIZE
+ON PATCH SIZE
 ------------------
 At 224x224 (DeepDetect phase) we extract a 56x56 patch.
 At 32x32 (CIFAKE prototype phase) a 56x56 patch does not fit — the entire
 image is used instead (patch_size is clamped to image size).
 We do not upsample a small patch to a larger size because this introduces interpolation
-artifacts that contaminate the frequency signal you are trying to detect.
+artifacts that contaminate the frequency signal we are trying to detect.
 """
 import torch
 import torch.nn.functional as F

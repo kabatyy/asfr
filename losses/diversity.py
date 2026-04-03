@@ -39,7 +39,7 @@ strongly this is enforced relative to the classification loss.
 WHEN TO WORRY
 -------------
 If gate entropy on the test set is < 0.3 nats, the gate has collapsed.
-Increase diversity_weight in config.py and retrain from scratch.
+Increase diversity_weight in config and retrain from scratch.
 """
 
 import torch
@@ -58,7 +58,7 @@ class DiversityRegulariser(nn.Module):
         """
         Args:
             weight: How strongly to penalise constant gate outputs relative
-                    to the classification loss. Default 0.1 from advisor notes.
+                    to the classification loss.
                     Increase if gate entropy stays below 0.3 nats during training.
             n_bins: Number of histogram buckets used to estimate the gate value
                     distribution. 20 bins over [0, 1] gives 0.05-wide buckets,
@@ -77,7 +77,7 @@ class DiversityRegulariser(nn.Module):
         Returns:
             Scalar penalty tensor. High when all gate values are similar (gate is
             constant). Low when gate values are spread across [0, 1] (gate is
-            genuinely adapting per image). Add this to your total training loss.
+            genuinely adapting per image).
         """
         # Bin gate values into a soft histogram over [0, 1].
         # We use differentiable soft binning rather than torch.histc because

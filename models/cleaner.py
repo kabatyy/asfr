@@ -1,6 +1,6 @@
 """
 DESIGN 
-----------------------------------------
+------
 The cleaner has two components:
 
   1. PerceptionModule — a small classifier that looks at the input patch and
@@ -15,7 +15,7 @@ The cleaner has two components:
      will up-weight the compression filter; a clean patch will up-weight the
      clean filter.
 
-This makes the cleaner degradation-aware rather than a plain conv stack —
+This makes the cleaner degradation-aware rather than a plain conv stack as
 it adapts its cleaning strategy per patch based on what kind of degradation
 it detects.
 
@@ -69,7 +69,7 @@ class PerceptionModule(nn.Module):
     Outputs soft probabilities over [clean, blurry, compressed].
 
     These probabilities are used to weight the three specialised cleaning
-    filters in DegradationAwareCleaner — the cleaner adapts per patch.
+    filters in DegradationAwareCleaner. The cleaner adapts per patch.
 
     Deliberately lightweight: 2 conv layers + global avg pool + linear.
     It only needs to distinguish three coarse degradation types, not classify

@@ -98,7 +98,6 @@ class SpatialBranch(nn.Module):
             return model
 
         elif name == "dino_vits8":
-            # DINO is not in torchvision — load from torch.hub
             model = torch.hub.load(
                 "facebookresearch/dino:main",
                 "dino_vits8",
