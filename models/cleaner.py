@@ -143,7 +143,6 @@ class DegradationAwareCleaner(nn.Module):
         # Weights shape: (B, 3) — [p_clean, p_blurry, p_compressed] per image
         weights = self.perception(x)  # (B, 3)
 
-        # Step 2: apply each specialised filter independently
         out_clean      = self.filter_clean(x)       # (B, 3, H, W)
         out_blurry     = self.filter_blurry(x)      # (B, 3, H, W)
         out_compressed = self.filter_compressed(x)  # (B, 3, H, W)
