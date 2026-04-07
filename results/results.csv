@@ -1,1 +1,2 @@
-experiment,fusion,backbone,dataset,accuracy,auc_roc,f1,gate_entropy,notes
+timestamp,experiment_name,fusion,backbone,frozen,dataset,image_size,epochs,freq_aux_weight,spatial_aux_weight,diversity_weight,accuracy,auc_roc,f1,gate_entropy,gate_mean,gate_var,notes
+2026-04-06 23:33,smoke_test,gating,swin_v2_s,False,cifake,32,2,0.5,0.3,0.1,0.625,0.5,0.7692,0.0,0.5131,0.0,synthetic data smoke test
