@@ -184,7 +184,7 @@ def _print_report(results, cfg):
 
     if results.get("warnings"):
         for w in results["warnings"]:
-            print(f"\n{'!'*60}\n{w}\n{'!'*60}")
+            print(f"{w}")
     else:
         print("\n  No warning signs triggered. ✓")
     print("="*60)

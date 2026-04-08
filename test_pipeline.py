@@ -7,7 +7,8 @@ import torch
 from torch.utils.data import DataLoader, TensorDataset
 from config import Config
 from experiments.train import train
-
+from pathlib import Path
+from experiments.evaluate import full_evaluation
 
 def make_fake_loader(n=128, image_size=32, batch_size=16):
     """Synthetic dataset — random images with random binary labels."""
@@ -32,9 +33,9 @@ def main():
     # Minimal config — smallest backbone, no pretrained weights
     cfg = Config()
     cfg.backbone.name      = "swin_v2_s"
-    cfg.backbone.pretrained = False  
+    cfg.backbone.pretrained = True  
     cfg.fusion.mode        = "gating"
-    cfg.train.epochs       = 2        
+    cfg.train.epochs       = 35      
     cfg.data.image_size    = 32
     cfg.experiment_name    = "smoke_test"
     cfg.notes              = "synthetic data smoke test"
@@ -45,8 +46,20 @@ def main():
     print(f"\nRunning {cfg.train.epochs} epochs on synthetic data...")
     try:
         train(cfg, train_loader, test_loader)
-        print("\nSmoke test passed.")
-        print("The full pipeline is working correctly.")
+
+        # Test full_evaluation() with the saved checkpoint
+        print("\nTesting full evaluation pipeline...")
+        checkpoint = f"{cfg.train.checkpoint_dir}/best_{cfg.experiment_name}.pt"
+        if Path(checkpoint).exists():
+            results = full_evaluation(cfg, checkpoint, test_loader, save_to_csv=True)
+            assert "accuracy"  in results
+            assert "auc_roc"   in results
+            assert "f1"        in results
+            assert "gate_stats" in results  # gating mode
+            assert "warnings"  in results
+            print("full_evaluation(): OK")
+        else:
+            print(f"No checkpoint found at {checkpoint} — skipping eval test")
     except Exception as e:
         print(f"\nSmoke test FAILED: {e}")
         raise

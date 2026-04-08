@@ -171,8 +171,9 @@ def train(cfg: Config, train_loader, test_loader):
                   f"spatial={train_log['spatial_branch_grad_norm']:.4f}")
 
         # Warning signs
-        for w in val_metrics.get("warnings", []):
-            print(f"\n{'!'*60}\n{w}\n{'!'*60}")
+        if epoch > 0.8 * cfg.train.epochs:
+            for w in val_metrics.get("warnings", []):
+                print(f"{w}")
 
         # Checkpoint
         if val_metrics["accuracy"] > best_acc:

@@ -67,7 +67,7 @@ def save_results(cfg: Config, metrics: dict, notes: str = "") -> None:
         return metrics.get(flat_key, gate_stats.get(nested_key, 0.0))
 
     row = {
-        "timestamp":          datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "timestamp":          datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
         "experiment_name":    cfg.experiment_name,
         "fusion":             cfg.fusion.mode,
         "backbone":           cfg.backbone.name,

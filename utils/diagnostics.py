@@ -45,7 +45,7 @@ def log_fusion_scalars(model):
     """
     a, b = model.fusion.get_scalars()
     if b < 0.1:
-        print(f"  !! WARNING: freq scalar b={b:.3f} < 0.1 — "
+        print(f"WARNING: freq scalar b={b:.3f} < 0.1 — "
               "freq branch being ignored. Increase freq_aux_weight.")
     return {"scalar_spatial": a, "scalar_freq": b}
 
@@ -83,19 +83,19 @@ def check_warning_signs(
 
     if freq_only_acc is not None and freq_only_acc < 0.60:
         warnings.append(
-            f"WARNING SIGN 1: Freq-only accuracy {freq_only_acc:.1%} < 60%. "
+            f"WARNING: Freq-only accuracy {freq_only_acc:.1%} < 60%. "
             "Check fftshift, log-scaling, and normalisation before building fusion."
         )
     if fused_acc is not None and spatial_only_acc is not None:
         if fused_acc <= spatial_only_acc:
             warnings.append(
-                f"WARNING SIGN 2: Fused accuracy {fused_acc:.1%} <= spatial-only "
+                f"WARNING: Fused accuracy {fused_acc:.1%} <= spatial-only "
                 f"{spatial_only_acc:.1%}. Freq branch is adding noise. "
                 "Check gradient norms and scalar/gate values for collapse."
             )
     if gate_entropy is not None and gate_entropy < 0.3:
         warnings.append(
-            f"WARNING SIGN 3: Gate entropy {gate_entropy:.3f} nats < 0.3. "
+            f"WARNING: Gate entropy {gate_entropy:.3f} nats < 0.3. "
             "Gate collapsed to near-constant output. Add entropy regulariser and retrain."
         )
 
