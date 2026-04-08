@@ -65,36 +65,36 @@ class FrequencyBranch(nn.Module):
         Returns:
             features:   (B, feature_dim) — passed to fusion module
             aux_logits: (B, 2)           — used for auxiliary loss during training
+            patch:      (B, C, P, P)     — flat patch used (reused for cleaner recon loss)
         """
-        # Select flattest patch per image (Chen et al. 2024)
+        # Step 1: select flattest patch per image (Chen et al. 2024)
         # Cleaner and SRM operate on the patch only, not the full image
-        x = select_flat_patch_batch(x, patch_size=self.cfg.patch_size)
+        patch = select_flat_patch_batch(x, patch_size=self.cfg.patch_size)
 
-        # Optional degradation-aware cleaner — operates on patch only
+        # Step 2: optional degradation-aware cleaner — operates on patch only
         if self.cleaner is not None:
-            x = self.cleaner(x)
+            patch = self.cleaner(patch)
 
-        # SRM filters — suppress content, extract noise residual
-        x = self.srm(x)
+        # Step 3: SRM filters — suppress content, extract noise residual
+        x_srm = self.srm(patch)
 
-        # log-magnitude FFT with fftshift
-        x = fft_spectrum_tensor(x, fftshift=self.cfg.use_fftshift)
+        # Step 4: log-magnitude FFT with fftshift
+        x_fft = fft_spectrum_tensor(x_srm, fftshift=self.cfg.use_fftshift)
 
-        # CNN forward → feature vector
-        features = self.cnn(x)
+        # Step 5: CNN forward → feature vector
+        features = self.cnn(x_fft)
 
-        # Auxiliary head for training loss
+        # Step 6: auxiliary head for training loss
         aux_logits = self.aux_head(features)
 
-        return features, aux_logits
-
+        return features, aux_logits, patch
 
 
 
 # SRM filter layer
 class SRMFilterLayer(nn.Module):
     """
-    Fixed Spatial Rich Model (SRM) filters.
+    Fixed Spatial Rich Model (SRM) filters — not learned, never updated.
 
     SRM filters suppress visible image content (objects, colours, textures)
     and extract the high-frequency noise residual. Real camera photographs
@@ -102,15 +102,17 @@ class SRMFilterLayer(nn.Module):
     have a different noise pattern from the generation process. SRM makes
     this difference visible to the CNN downstream.
 
-    Because these filters are fixed, they cannot overfit to specific generators. 
-    The same mathematical operation is applied to every image.
+    Because these filters are fixed (registered as buffers, not parameters),
+    they cannot overfit to specific generators. The same mathematical operation
+    is applied to every image — differences in output come from the image's
+    noise structure, not from learned weights.
 
     We use 3 standard SRM kernels applied to each of the 3 RGB channels,
     producing 9 output channels total.
     """
 
     # Three standard SRM high-pass kernels (3x3)
-    # They approximate image derivatives
+    # These are the "residual" kernels — they approximate image derivatives
     # and suppress smooth/low-frequency content
     SRM_KERNELS = torch.tensor([
         # Kernel 1: horizontal gradient
@@ -143,7 +145,7 @@ class SRMFilterLayer(nn.Module):
             for c in range(3):              # c = RGB channel index (0-2)
                 weight[i * 3 + c, c] = k   # kernel i applied to channel c -> output i*3+c
 
-        # Register as buffer 
+        # Register as buffer — moves with .to(device), never appears in parameters()
         self.register_buffer("weight", weight)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

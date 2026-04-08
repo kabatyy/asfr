@@ -20,7 +20,6 @@ from config import Config
 from models.spatial_branch import SpatialBranch
 from models.frequency_branch import FrequencyBranch
 from models.fusion import build_fusion
-from utils.patch_select import select_flat_patch_batch
 
 
 SPATIAL_FEAT_DIM = 512
@@ -73,9 +72,8 @@ class ASFRModel(nn.Module):
         # Spatial branch
         spatial_feat = self.spatial_branch(x)
 
-        # Frequency branch — also returns patch used (for cleaner recon loss)
-        freq_patches = select_flat_patch_batch(x, patch_size=self.cfg.frequency.patch_size)
-        freq_feat, freq_aux_logits = self.freq_branch(x)
+        # Frequency branch — returns (features, aux_logits, patch)
+        freq_feat, freq_aux_logits, freq_patches = self.freq_branch(x)
 
         # Fusion
         fused, gate_info = self.fusion(spatial_feat, freq_feat)
