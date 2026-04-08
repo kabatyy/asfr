@@ -33,9 +33,9 @@ def main():
     # Minimal config — smallest backbone, no pretrained weights
     cfg = Config()
     cfg.backbone.name      = "swin_v2_s"
-    cfg.backbone.pretrained = True  
+    cfg.backbone.pretrained = False  
     cfg.fusion.mode        = "gating"
-    cfg.train.epochs       = 35      
+    cfg.train.epochs       = 2      
     cfg.data.image_size    = 32
     cfg.experiment_name    = "smoke_test"
     cfg.notes              = "synthetic data smoke test"
