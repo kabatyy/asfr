@@ -1,7 +1,8 @@
 # Model weights
 checkpoints/*.pt
 checkpoints/*.pth
-
+experiments/checkpoints/*.pt
+experiments/checkpoints/*.pth
 # Datasets
 data/raw/
 data/processed/

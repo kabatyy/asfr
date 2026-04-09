@@ -79,6 +79,6 @@ asfr/
 │   └── evaluate.py             # Full evaluation suite
 │
 └── docs/
-    └── Guide.docx   
+    └── Guide.pdf
 ```
 ---

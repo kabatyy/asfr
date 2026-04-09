@@ -14,6 +14,13 @@ class DataConfig:
     image_size: int = 32
     batch_size: int = 64
     num_workers: int = 4
+    # Training augmentations — all False by default, enable per experiment
+    jpeg_aug: bool = False               # JPEG compression (quality 70-90)
+    blur_aug: bool = False              # Gaussian blur (sigma 0.5-1.5)
+    noise_aug: bool = False             # additive Gaussian noise (std 0.01-0.03)
+    recompression_aug: bool = False     # resize down and back up (scale 0.5-0.75)
+    mixed_aug: bool = False             # random combinations of 2-3 degradations
+    mixed_aug_prob: float = 0.3         # probability of applying mixed degradation
     jpeg_aug_quality_range: tuple = (70, 90)
 
     @property
