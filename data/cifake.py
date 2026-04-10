@@ -42,12 +42,18 @@ class CIFAKEDataset(Dataset):
 
 def get_cifake_loaders(cfg):
     """
-    Build train and test DataLoaders from a Config instance.
+    Build train, val, and test DataLoaders from a Config instance.
+
+    Splits the training set into train (85%) and val (15%).
+    The test set is kept untouched for final evaluation only.
 
     Usage in notebook:
         from data.cifake import get_cifake_loaders
-        train_loader, test_loader = get_cifake_loaders(cfg)
+        train_loader, val_loader, test_loader = get_cifake_loaders(cfg)
     """
+    import torch
+    from torch.utils.data import random_split
+
     train_tf = get_transforms(
         "train",
         image_size         = cfg.data.image_size,
@@ -61,15 +67,32 @@ def get_cifake_loaders(cfg):
     )
     test_tf = get_transforms("test", image_size=cfg.data.image_size)
 
-    train_ds = CIFAKEDataset(cfg.data.cifake_root, split="train", transform=train_tf)
-    test_ds  = CIFAKEDataset(cfg.data.cifake_root, split="test",  transform=test_tf)
+    full_train_ds = CIFAKEDataset(cfg.data.cifake_root, split="train", transform=train_tf)
+    test_ds       = CIFAKEDataset(cfg.data.cifake_root, split="test",  transform=test_tf)
+
+    # Split training set: 85% train, 15% val
+    n_total = len(full_train_ds)
+    n_val   = int(n_total * cfg.data.val_split)
+    n_train = n_total - n_val
+    generator = torch.Generator().manual_seed(cfg.train.seed)
+    train_ds, val_ds = random_split(full_train_ds, [n_train, n_val], generator=generator)
+
+    # Val set uses test transforms — no augmentation
+    # We patch the transform on the subset
+    val_ds.dataset = CIFAKEDataset(cfg.data.cifake_root, split="train", transform=test_tf)
 
     train_loader = DataLoader(
         train_ds, batch_size=cfg.data.batch_size, shuffle=True,
+        num_workers=cfg.data.num_workers, pin_memory=True,
+    )
+    val_loader = DataLoader(
+        val_ds, batch_size=cfg.data.batch_size, shuffle=False,
         num_workers=cfg.data.num_workers, pin_memory=True,
     )
     test_loader = DataLoader(
         test_ds, batch_size=cfg.data.batch_size, shuffle=False,
         num_workers=cfg.data.num_workers, pin_memory=True,
     )
-    return train_loader, test_loader
+
+    print(f"Train: {len(train_ds):,}  Val: {len(val_ds):,}  Test: {len(test_ds):,}")
+    return train_loader, val_loader, test_loader

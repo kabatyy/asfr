@@ -22,6 +22,7 @@ class DataConfig:
     mixed_aug: bool = False             # random combinations of 2-3 degradations
     mixed_aug_prob: float = 0.3         # probability of applying mixed degradation
     jpeg_aug_quality_range: tuple = (70, 90)
+    val_split: float = 0.15          # fraction of training set used for validation
 
     @property
     def data_root(self) -> str:
@@ -71,7 +72,7 @@ class BackboneConfig:
     ] = "convnext_base"
     pretrained: bool = True
     frozen: bool = False
-    img_size: int = 32 # To match timm            
+    img_size: int = 32             # must match data.image_size — passed to timm
 
 
 @dataclass

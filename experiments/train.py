@@ -14,6 +14,7 @@ Training checklist:
 import torch
 import torch.optim as optim
 from torch.amp import GradScaler, autocast
+from tqdm import tqdm
 from pathlib import Path
 
 from config import Config
@@ -36,7 +37,8 @@ def train_one_epoch(model, loader, optimizer, aux_loss_fn,
     total_loss = 0.0
     all_gate_values = []
 
-    for images, labels in loader:
+    pbar = tqdm(loader, desc=f"Epoch {epoch+1}", leave=False, unit="batch")
+    for images, labels in pbar:
         images, labels = images.to(device), labels.to(device)
         optimizer.zero_grad()
 
@@ -76,7 +78,10 @@ def train_one_epoch(model, loader, optimizer, aux_loss_fn,
             losses["total"].backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
-        total_loss += losses["total"].item()
+
+        batch_loss = losses["total"].item()
+        total_loss += batch_loss
+        pbar.set_postfix(loss=f"{batch_loss:.4f}")
 
     log = {"total_loss": total_loss / len(loader)}
 
@@ -137,9 +142,20 @@ def evaluate(model, loader, device, cfg):
     return metrics
 
 
-def train(cfg: Config, train_loader, test_loader):
+def train(cfg: Config, train_loader, val_loader, test_loader=None):
+    """
+    Train the full ASFR model.
+
+    Args:
+        cfg:          Config instance
+        train_loader: Training DataLoader
+        val_loader:   Validation DataLoader — used for per-epoch monitoring
+        test_loader:  Optional. If provided, runs final evaluation on test set.
+    """
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
+    if torch.cuda.is_available():
+        print(f"GPU: {torch.cuda.get_device_name(0)}")
     Path(cfg.train.checkpoint_dir).mkdir(parents=True, exist_ok=True)
 
     model        = ASFRModel(cfg).to(device)
@@ -151,7 +167,15 @@ def train(cfg: Config, train_loader, test_loader):
     aux_loss_fn  = AuxiliaryLoss(cfg.loss)
     diversity_fn = DiversityRegulariser(weight=cfg.fusion.diversity_weight)
 
-    best_acc = 0.0
+    best_val_acc = 0.0
+
+    print(f"\n{'='*70}")
+    print(f"Experiment: {cfg.experiment_name}")
+    print(f"Backbone: {cfg.backbone.name} | Fusion: {cfg.fusion.mode} | "
+          f"Frozen: {cfg.backbone.frozen}")
+    print(f"Epochs: {cfg.train.epochs} | LR: {cfg.train.lr} | "
+          f"Batch: {cfg.data.batch_size}")
+    print(f"{'='*70}\n")
 
     for epoch in range(cfg.train.epochs):
         train_log = train_one_epoch(
@@ -159,16 +183,17 @@ def train(cfg: Config, train_loader, test_loader):
             aux_loss_fn, diversity_fn, device, epoch, cfg, scaler
         )
         scheduler.step()
-        val_metrics = evaluate(model, test_loader, device, cfg)
+
+        val_metrics = evaluate(model, val_loader, device, cfg)
         val_metrics["_epoch"] = epoch
         val_metrics["_total_epochs"] = cfg.train.epochs
 
-        # Console output
-        print(f"Epoch {epoch+1}/{cfg.train.epochs} | "
-              f"loss={train_log['total_loss']:.4f} | "
-              f"acc={val_metrics['accuracy']:.1%} | "
-              f"auc={val_metrics['auc_roc']:.3f} | "
-              f"f1={val_metrics['f1']:.3f}")
+        # Console output — every epoch
+        print(f"Epoch {epoch+1:>3}/{cfg.train.epochs} | "
+              f"train_loss={train_log['total_loss']:.4f} | "
+              f"val_acc={val_metrics['accuracy']:.1%} | "
+              f"val_auc={val_metrics['auc_roc']:.3f} | "
+              f"val_f1={val_metrics['f1']:.3f}")
 
         # Scalar/gate logging
         if epoch % cfg.train.log_scalar_every_n_epochs == 0:
@@ -190,16 +215,16 @@ def train(cfg: Config, train_loader, test_loader):
         val_metrics.pop("_epoch", None)
         val_metrics.pop("_total_epochs", None)
         for w in val_metrics.get("warnings", []):
-            print(f"\n{'!'*60}\n{w}\n{'!'*60}")
+            print(f"\n{w}")
 
-        # Checkpoint
-        if val_metrics["accuracy"] > best_acc:
-            best_acc = val_metrics["accuracy"]
+        # Checkpoint on best val accuracy
+        if val_metrics["accuracy"] > best_val_acc:
+            best_val_acc = val_metrics["accuracy"]
             torch.save(model.state_dict(),
                        f"{cfg.train.checkpoint_dir}/best_{cfg.experiment_name}.pt")
-            print(f"  -> Saved best (acc={best_acc:.1%})")
+            print(f"  -> Saved best val_acc={best_val_acc:.1%}")
 
     # Log results to CSV
     save_results(cfg, val_metrics)
-    print(f"\nTraining complete. Best accuracy: {best_acc:.1%}")
-    return best_acc
+    print(f"\nTraining complete. Best val accuracy: {best_val_acc:.1%}")
+    return best_val_acc

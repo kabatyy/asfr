@@ -11,6 +11,7 @@ spatial-only model gives a cleaner floor.
 """
 
 import torch
+from tqdm import tqdm
 import torch.nn as nn
 import torch.optim as optim
 from pathlib import Path
@@ -21,7 +22,7 @@ from utils.metrics import binary_accuracy, binary_auc_roc, binary_f1
 from utils.results_logger import save_results
 
 
-def run_spatial_only_baseline(cfg: Config, train_loader, test_loader) -> float:
+def run_spatial_only_baseline(cfg: Config, train_loader, val_loader, test_loader=None) -> float:
     """
     Train and evaluate the spatial branch as a standalone binary classifier.
     Number of epochs read from cfg.train.epochs.
@@ -46,15 +47,18 @@ def run_spatial_only_baseline(cfg: Config, train_loader, test_loader) -> float:
 
     params = list(backbone.parameters()) + list(classifier.parameters())
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.AdamW(params, lr=cfg.train.lr, weight_decay=cfg.train.weight_decay)
+    optimizer = optim.AdamW(params, lr=1e-4, weight_decay=cfg.train.weight_decay)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-6)
 
     print(f"Training spatial-only baseline ({cfg.backbone.name}) for {epochs} epochs...")
+    print(f"Train: {len(train_loader.dataset):,}  Val: {len(val_loader.dataset):,}")
 
     for epoch in range(epochs):
         backbone.train()
         classifier.train()
-        for images, labels in train_loader:
+        train_loss = 0.0
+        pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs}", leave=False, unit="batch")
+        for images, labels in pbar:
             images, labels = images.to(device), labels.to(device)
             optimizer.zero_grad()
             features = backbone(images)
@@ -63,22 +67,38 @@ def run_spatial_only_baseline(cfg: Config, train_loader, test_loader) -> float:
             loss.backward()
             torch.nn.utils.clip_grad_norm_(params, max_norm=1.0)
             optimizer.step()
+            train_loss += loss.item()
         scheduler.step()
 
-        if (epoch + 1) % 5 == 0:
-            print(f"  Epoch {epoch+1}/{epochs}")
+        # Val evaluation every epoch
+        backbone.eval()
+        classifier.eval()
+        val_logits, val_labels = [], []
+        with torch.no_grad():
+            for images, labels in val_loader:
+                features = backbone(images.to(device))
+                logits = classifier(features)
+                val_logits.append(logits.cpu())
+                val_labels.append(labels)
+        vl = torch.cat(val_logits)
+        yl = torch.cat(val_labels)
+        val_acc = binary_accuracy(vl, yl)
+        print(f"Epoch {epoch+1:>3}/{epochs} | "
+              f"train_loss={train_loss/len(train_loader):.4f} | "
+              f"val_acc={val_acc:.1%}")
 
     # Save checkpoint
     ckpt_path = f"{cfg.train.checkpoint_dir}/best_{cfg.experiment_name}.pt"
     torch.save({"backbone": backbone.state_dict(),
                 "classifier": classifier.state_dict()}, ckpt_path)
 
-    # Evaluation
+    # Final evaluation on test set if provided, otherwise use val set
+    eval_loader = test_loader if test_loader is not None else val_loader
     backbone.eval()
     classifier.eval()
     all_logits, all_labels = [], []
     with torch.no_grad():
-        for images, labels in test_loader:
+        for images, labels in eval_loader:
             features = backbone(images.to(device))
             logits = classifier(features)
             all_logits.append(logits.cpu())
