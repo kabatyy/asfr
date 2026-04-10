@@ -224,6 +224,7 @@ def train(cfg: Config, train_loader, val_loader, test_loader=None):
                        f"{cfg.train.checkpoint_dir}/best_{cfg.experiment_name}.pt")
             print(f"  -> Saved best val_acc={best_val_acc:.1%}")
 
+    # Log results to CSV
+    save_results(cfg, val_metrics)
     print(f"\nTraining complete. Best val accuracy: {best_val_acc:.1%}")
-    print("Results will be logged to CSV after full_evaluation().")
     return best_val_acc
