@@ -13,6 +13,7 @@ Training checklist:
 
 import torch
 import torch.optim as optim
+from torch.amp import GradScaler, autocast
 from pathlib import Path
 
 from config import Config
@@ -30,7 +31,7 @@ from utils.results_logger import save_results
 
 
 def train_one_epoch(model, loader, optimizer, aux_loss_fn,
-                    diversity_fn, device, epoch, cfg):
+                    diversity_fn, device, epoch, cfg, scaler=None):
     model.train()
     total_loss = 0.0
     all_gate_values = []
@@ -39,34 +40,42 @@ def train_one_epoch(model, loader, optimizer, aux_loss_fn,
         images, labels = images.to(device), labels.to(device)
         optimizer.zero_grad()
 
-        outputs = model(images, training=True)
+        with autocast(device_type=device.type, enabled=device.type == "cuda"):
+            outputs = model(images, training=True)
 
-        # Cleaner reconstruction loss — real images only
-        real_mask = (labels == 0)
-        recon_loss = None
-        if real_mask.any() and model.freq_branch.cleaner is not None:
-            recon_loss = model.freq_branch.cleaner.reconstruction_loss(
-                outputs["freq_patches"][real_mask]
+            # Cleaner reconstruction loss — real images only
+            real_mask = (labels == 0)
+            recon_loss = None
+            if real_mask.any() and model.freq_branch.cleaner is not None:
+                recon_loss = model.freq_branch.cleaner.reconstruction_loss(
+                    outputs["freq_patches"][real_mask]
+                )
+
+            # Combined loss
+            losses = aux_loss_fn(
+                joint_logits       = outputs["joint_logits"],
+                labels             = labels,
+                spatial_aux_logits = outputs.get("spatial_aux_logits"),
+                freq_aux_logits    = outputs.get("freq_aux_logits"),
+                cleaner_recon_loss = recon_loss,
             )
 
-        # Combined loss
-        losses = aux_loss_fn(
-            joint_logits       = outputs["joint_logits"],
-            labels             = labels,
-            spatial_aux_logits = outputs.get("spatial_aux_logits"),
-            freq_aux_logits    = outputs.get("freq_aux_logits"),
-            cleaner_recon_loss = recon_loss,
-        )
+            # Diversity regulariser for gating
+            if "gate_values" in outputs:
+                diversity_penalty = diversity_fn(outputs["gate_values"].detach())
+                losses["total"] = losses["total"] + diversity_penalty
+                all_gate_values.append(outputs["gate_values"].detach().cpu())
 
-        # Diversity regulariser for gating
-        if "gate_values" in outputs:
-            diversity_penalty = diversity_fn(outputs["gate_values"].detach())
-            losses["total"] = losses["total"] + diversity_penalty
-            all_gate_values.append(outputs["gate_values"].detach().cpu())
-
-        losses["total"].backward()
-
-        optimizer.step()
+        if scaler is not None:
+            scaler.scale(losses["total"]).backward()
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            losses["total"].backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            optimizer.step()
         total_loss += losses["total"].item()
 
     log = {"total_loss": total_loss / len(loader)}
@@ -119,7 +128,11 @@ def evaluate(model, loader, device, cfg):
         metrics["gate_mean"]    = gate_tensor.mean().item()
         metrics["gate_var"]     = gate_tensor.var().item()
 
-    metrics["warnings"] = check_warning_signs(gate_entropy=gate_entropy)
+    metrics["warnings"] = check_warning_signs(
+        gate_entropy=gate_entropy,
+        epoch=metrics.get("_epoch"),
+        total_epochs=metrics.get("_total_epochs"),
+    )
 
     return metrics
 
@@ -130,6 +143,7 @@ def train(cfg: Config, train_loader, test_loader):
     Path(cfg.train.checkpoint_dir).mkdir(parents=True, exist_ok=True)
 
     model        = ASFRModel(cfg).to(device)
+    scaler       = GradScaler(enabled=device.type == "cuda")
     optimizer    = optim.AdamW(model.parameters(), lr=cfg.train.lr,
                                weight_decay=cfg.train.weight_decay)
     scheduler    = optim.lr_scheduler.CosineAnnealingLR(
@@ -142,10 +156,12 @@ def train(cfg: Config, train_loader, test_loader):
     for epoch in range(cfg.train.epochs):
         train_log = train_one_epoch(
             model, train_loader, optimizer,
-            aux_loss_fn, diversity_fn, device, epoch, cfg
+            aux_loss_fn, diversity_fn, device, epoch, cfg, scaler
         )
         scheduler.step()
         val_metrics = evaluate(model, test_loader, device, cfg)
+        val_metrics["_epoch"] = epoch
+        val_metrics["_total_epochs"] = cfg.train.epochs
 
         # Console output
         print(f"Epoch {epoch+1}/{cfg.train.epochs} | "
@@ -171,9 +187,10 @@ def train(cfg: Config, train_loader, test_loader):
                   f"spatial={train_log['spatial_branch_grad_norm']:.4f}")
 
         # Warning signs
-        if epoch > 0.8 * cfg.train.epochs:
-            for w in val_metrics.get("warnings", []):
-                print(f"{w}")
+        val_metrics.pop("_epoch", None)
+        val_metrics.pop("_total_epochs", None)
+        for w in val_metrics.get("warnings", []):
+            print(f"\n{'!'*60}\n{w}\n{'!'*60}")
 
         # Checkpoint
         if val_metrics["accuracy"] > best_acc:
