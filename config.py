@@ -71,6 +71,7 @@ class BackboneConfig:
     ] = "convnext_base"
     pretrained: bool = True
     frozen: bool = False
+    img_size: int = 32 # To match timm            
 
 
 @dataclass

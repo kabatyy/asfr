@@ -14,7 +14,7 @@ import timm
 from config import BackboneConfig
 
 
-# Maps config names to timm model strings and their feature dimensions
+# Maps our config names to timm model strings and their feature dimensions
 TIMM_MODEL_MAP = {
     "convnext_base": ("convnext_base",           1024),
     "swin_v2_s":     ("swinv2_base_window8_256", 1024),
@@ -43,11 +43,14 @@ class SpatialBranch(nn.Module):
 
         timm_name, backbone_dim = TIMM_MODEL_MAP[cfg.name]
 
-        # num_classes=0 
+        # num_classes=0 strips the classification head
+        # img_size=cfg.img_size tells timm to accept the actual input resolution
+        # rather than enforcing its default (224/256) — needed for 32x32 CIFAKE
         self.backbone = timm.create_model(
             timm_name,
             pretrained=cfg.pretrained,
-            num_classes=0,        
+            num_classes=0,
+            img_size=cfg.img_size,
         )
 
         self.projection = nn.Linear(backbone_dim, feature_dim)
@@ -64,7 +67,9 @@ class SpatialBranch(nn.Module):
         Returns:
             (B, feature_dim) feature vector
         """
-        features = self.backbone(x)     # (B, backbone_dim) 
+        features = self.backbone(x)   
+
+        # Some timm models return (B, dim, 1, 1) — flatten spatial dims
         if features.dim() == 4:
             features = features.flatten(start_dim=1)
 
