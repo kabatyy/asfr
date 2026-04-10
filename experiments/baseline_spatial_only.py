@@ -61,6 +61,7 @@ def run_spatial_only_baseline(cfg: Config, train_loader, test_loader) -> float:
             logits = classifier(features)
             loss = criterion(logits, labels)
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(params, max_norm=1.0)
             optimizer.step()
         scheduler.step()
 
