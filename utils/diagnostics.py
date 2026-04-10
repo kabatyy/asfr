@@ -19,52 +19,39 @@ def log_freq_branch_grad_norms(model):
     """
     Compute gradient norms for frequency and spatial branch parameters.
     Call after loss.backward(), before optimizer.step().
-    Near-zero freq_branch_grad_norm = gradient starvation.
-
-    Returns dict with 'freq_branch_grad_norm', 'spatial_branch_grad_norm'.
+    Returns dict with freq_branch_grad_norm and spatial_branch_grad_norm.
     """
-    def _branch_norm(module):
-        total = 0.0
-        count = 0
+    def _norm(module):
+        total, count = 0.0, 0
         for p in module.parameters():
             if p.grad is not None:
                 total += p.grad.detach().norm().item() ** 2
                 count += 1
-        return (total ** 0.5) if count > 0 else 0.0
+        return total ** 0.5 if count > 0 else 0.0
 
     return {
-        "freq_branch_grad_norm":    _branch_norm(model.freq_branch),
-        "spatial_branch_grad_norm": _branch_norm(model.spatial_branch),
+        "freq_branch_grad_norm":    _norm(model.freq_branch),
+        "spatial_branch_grad_norm": _norm(model.spatial_branch),
     }
 
 
 def log_fusion_scalars(model):
     """
     For scalar fusion mode: return current (a, b) after softmax.
-    Warn if b < 0.1.
+    Returns dict with scalar_spatial and scalar_freq.
     """
     a, b = model.fusion.get_scalars()
-    if b < 0.1:
-        print(f"WARNING: freq scalar b={b:.3f} < 0.1 — "
-              "freq branch being ignored. Increase freq_aux_weight.")
     return {"scalar_spatial": a, "scalar_freq": b}
 
 
 def compute_gate_entropy(gate_values, n_bins=20):
     """
     Compute entropy (nats) of the gate value distribution.
-    Below 0.3 nats = gate has collapsed to near-constant output.
-
-    Args:
-        gate_values: 1D tensor of gate outputs in [0, 1]
-
-    Returns:
-        Entropy in nats (float).
+    Below 0.3 nats indicates the gate has collapsed to near-constant output.
     """
     gate_np = gate_values.detach().cpu().numpy()
     counts, _ = np.histogram(gate_np, bins=n_bins, range=(0.0, 1.0))
     probs = counts / (counts.sum() + 1e-8)
-    # -sum(p * log(p)), skip zero bins
     entropy = -np.sum(probs[probs > 0] * np.log(probs[probs > 0]))
     return float(entropy)
 
@@ -74,29 +61,44 @@ def check_warning_signs(
     fused_acc=None,
     spatial_only_acc=None,
     gate_entropy=None,
+    epoch=None,
+    total_epochs=None,
 ):
     """
-    Check the three warning signs.
-    Returns a list of warning strings (empty if all clear).
+    Check for known failure modes. Returns a list of warning strings.
+
+    Warnings are only raised in the final 20% of training (when epoch and
+    total_epochs are provided) to give the model time to settle first.
+    Pass epoch=None to always check regardless of training stage.
     """
+    # Only check in the final 20% of training
+    if epoch is not None and total_epochs is not None:
+        if epoch < 0.8 * total_epochs:
+            return []
+
     warnings = []
 
     if freq_only_acc is not None and freq_only_acc < 0.60:
         warnings.append(
-            f"WARNING: Freq-only accuracy {freq_only_acc:.1%} < 60%. "
-            "Check fftshift, log-scaling, and normalisation before building fusion."
+            f"UserWarning: Frequency-only accuracy is {freq_only_acc:.1%}, which is below "
+            f"the 60% hard stop. The FFT representation is not capturing useful signal. "
+            f"Check that fftshift=True, log-scaling is applied, and normalisation is "
+            f"correct. Do not proceed to fusion experiments until this is resolved."
         )
+
     if fused_acc is not None and spatial_only_acc is not None:
         if fused_acc <= spatial_only_acc:
             warnings.append(
-                f"WARNING: Fused accuracy {fused_acc:.1%} <= spatial-only "
-                f"{spatial_only_acc:.1%}. Freq branch is adding noise. "
-                "Check gradient norms and scalar/gate values for collapse."
+                f"UserWarning: Fused accuracy ({fused_acc:.1%}) is not higher than "
+                f"spatial-only accuracy ({spatial_only_acc:.1%}). The frequency branch "
+                f"is not contributing. Check gradient norms and gate/scalar values."
             )
+
     if gate_entropy is not None and gate_entropy < 0.3:
         warnings.append(
-            f"WARNING: Gate entropy {gate_entropy:.3f} nats < 0.3. "
-            "Gate collapsed to near-constant output. Add entropy regulariser and retrain."
+            f"UserWarning: Gate entropy is {gate_entropy:.3f} nats, below the 0.3 "
+            f"threshold. The gate is outputting near-constant values and is not adapting "
+            f"per sample. Try increasing diversity_weight in config and retraining."
         )
 
     return warnings
