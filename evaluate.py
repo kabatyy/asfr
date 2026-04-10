@@ -12,7 +12,6 @@ A thin wrapper around experiments/evaluate.py.
 """
 
 import argparse
-
 from config import Config
 from experiments.evaluate import full_evaluation
 
@@ -42,19 +41,13 @@ def main():
     cfg.experiment_name = (f"{args.backbone}_{args.fusion}"
                            f"{'_frozen' if args.frozen else ''}")
 
+    cfg.data.batch_size = args.batch_size
     if args.dataset == "cifake":
         from data.cifake import get_cifake_loaders
-        _, test_loader = get_cifake_loaders(
-            root=cfg.data.cifake_root,
-            image_size=cfg.data.image_size,
-            batch_size=args.batch_size,
-        )
+        _, test_loader = get_cifake_loaders(cfg)
     else:
         from data.deepdetect import get_deepdetect_loaders
-        _, test_loader = get_deepdetect_loaders(
-            root=cfg.data.deepdetect_root,
-            batch_size=args.batch_size,
-        )
+        _, test_loader = get_deepdetect_loaders(cfg)
 
     full_evaluation(cfg, args.checkpoint, test_loader, dataset_type=args.dataset)
 
