@@ -28,7 +28,6 @@ from utils.diagnostics import (
     check_warning_signs,
 )
 from utils.metrics import binary_accuracy, binary_auc_roc, binary_f1
-from utils.results_logger import save_results
 
 
 def train_one_epoch(model, loader, optimizer, aux_loss_fn,
