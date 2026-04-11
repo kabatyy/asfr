@@ -109,7 +109,11 @@ class DiversityRegulariser(nn.Module):
         # Empty bins contribute 0 to entropy.
         entropy = -(bin_probs * torch.log(bin_probs.clamp(min=1e-8))).sum()
 
-        # Return the penalty. Because we minimise total loss, the model
-        # is pushed to maximise entropy (spread out gate values), which is what
-        # we want. The penalty is high when entropy is low (gate is constant).
-        return self.weight * (-entropy)
+        # Return the penalty.
+        # We want to penalise LOW entropy (gate constant) but not reward HIGH entropy
+        # (gate already varying). Using raw -entropy causes total loss to go negative
+        # when entropy is high, making the loss curve uninterpretable.
+        # Instead we use max(0, target - entropy) — only penalise when entropy is
+        # below the target (2.0 nats ≈ moderately spread distribution), zero otherwise.
+        target_entropy = 2.0
+        return self.weight * torch.clamp(target_entropy - entropy, min=0.0)
