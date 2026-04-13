@@ -10,7 +10,7 @@ from typing import Literal
 class DataConfig:
     dataset: Literal["cifake", "deepdetect"] = "cifake"
     cifake_root: str = "./data/raw/cifake"
-    deepdetect_root: str = "./data/raw/deepdetect"
+    deepdetect_root: str = "./data/raw/deep_detect/data"
     image_size: int = 32
     batch_size: int = 64
     num_workers: int = 4
@@ -32,7 +32,7 @@ class DataConfig:
 
 @dataclass
 class FrequencyConfig:
-    patch_size: int = 56           # patch extracted for freq analysis (at 224px; scale if smaller)
+    patch_size: int = 56           # patch extracted for freq analysis
     use_fftshift: bool = True      # CRITICAL: always True — moves DC to centre
     log_scale: bool = True         # log-magnitude of FFT spectrum
     srm_filters: bool = True       # prepend fixed SRM noise-residual filters
@@ -78,6 +78,7 @@ class BackboneConfig:
 @dataclass
 class TrainConfig:
     epochs: int = 50
+    backbone_lr: float = 1e-5          # separate lr for pretrained backbone
     lr: float = 1e-4
     weight_decay: float = 1e-4
     seed: int = 42

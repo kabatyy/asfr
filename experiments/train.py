@@ -157,10 +157,19 @@ def train(cfg: Config, train_loader, val_loader, test_loader=None):
         print(f"GPU: {torch.cuda.get_device_name(0)}")
     Path(cfg.train.checkpoint_dir).mkdir(parents=True, exist_ok=True)
 
-    model        = ASFRModel(cfg).to(device)
-    scaler       = GradScaler(enabled=device.type == "cuda")
-    optimizer    = optim.AdamW(model.parameters(), lr=cfg.train.lr,
-                               weight_decay=cfg.train.weight_decay)
+    model  = ASFRModel(cfg).to(device)
+    scaler = GradScaler(enabled=device.type == "cuda")
+
+    # Differential learning rates:
+    # Pretrained backbone uses a smaller lr to preserve learned features.
+    # All other components (projection, freq branch, fusion, head) use full lr.
+    backbone_params = list(model.spatial_branch.backbone.parameters())
+    other_params    = [p for p in model.parameters()
+                       if not any(p is bp for bp in backbone_params)]
+    optimizer = optim.AdamW([
+        {"params": backbone_params, "lr": cfg.train.backbone_lr},
+        {"params": other_params,    "lr": cfg.train.lr},
+    ], weight_decay=cfg.train.weight_decay)
     scheduler    = optim.lr_scheduler.CosineAnnealingLR(
                        optimizer, T_max=cfg.train.epochs, eta_min=1e-6)
     aux_loss_fn  = AuxiliaryLoss(cfg.loss)
