@@ -33,18 +33,20 @@ def fft_spectrum_tensor(image_tensor: torch.Tensor, fftshift: bool = True) -> to
         (B, C, H, W) log-magnitude spectrum tensor, per-sample normalised
         to zero mean and unit std so the CNN receives consistent input scale.
     """
+    # Cast to float32 before FFT — cuFFT in half precision (float16) only supports
+    # power-of-two dimensions. Casting ensures compatibility with mixed precision training
+    # regardless of patch size. The cast is cheap relative to the FFT itself.
+    spectrum = torch.fft.fft2(image_tensor.float())
 
-    spectrum = torch.fft.fft2(image_tensor)
- 
     if fftshift:
         spectrum = torch.fft.fftshift(spectrum, dim=(-2, -1))
- 
 
+    # log1p(|spectrum|): magnitude first, then log-compress
     log_magnitude = torch.log1p(torch.abs(spectrum))
- 
+
     return normalise_spectrum(log_magnitude)
- 
- 
+
+
 def normalise_spectrum(spectrum: torch.Tensor) -> torch.Tensor:
     """
     Normalise a spectrum tensor to zero mean and unit std per sample.
