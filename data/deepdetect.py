@@ -105,17 +105,19 @@ def get_deepdetect_loaders(cfg):
         cfg.data.deepdetect_root, split="train", transform=test_tf
     )
 
+    pin_memory = torch.cuda.is_available() # pin memory can be false on MPS
+
     train_loader = DataLoader(
         train_ds, batch_size=cfg.data.batch_size, shuffle=True,
-        num_workers=cfg.data.num_workers, pin_memory=True,
+        num_workers=cfg.data.num_workers, pin_memory=pin_memory,
     )
     val_loader = DataLoader(
         val_ds, batch_size=cfg.data.batch_size, shuffle=False,
-        num_workers=cfg.data.num_workers, pin_memory=True,
+        num_workers=cfg.data.num_workers, pin_memory=pin_memory,
     )
     test_loader = DataLoader(
         test_ds, batch_size=cfg.data.batch_size, shuffle=False,
-        num_workers=cfg.data.num_workers, pin_memory=True,
+        num_workers=cfg.data.num_workers, pin_memory=pin_memory,
     )
 
     print(f"Train: {len(train_ds):,}  Val: {len(val_ds):,}  Test: {len(test_ds):,}")
