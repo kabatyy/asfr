@@ -69,7 +69,8 @@ class FrequencyBranch(nn.Module):
         """
         # Step 1: select flattest patch per image (Chen et al. 2024)
         # Cleaner and SRM operate on the patch only, not the full image
-        patch = select_flat_patch_batch(x, patch_size=self.cfg.patch_size)
+        patch_size = self.cfg.resolve_patch_size(x.shape[-1])
+        patch = select_flat_patch_batch(x, patch_size=patch_size)
 
         # Step 2: optional degradation-aware cleaner — operates on patch only
         if self.cleaner is not None:
