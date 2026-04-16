@@ -44,7 +44,9 @@ def run_spatial_only_baseline(cfg: Config, train_loader, val_loader, test_loader
     print(f"Device: {device}")
 
     epochs = cfg.train.epochs
+    patience = getattr(cfg.train, "early_stopping_patience", 5)
     Path(cfg.train.checkpoint_dir).mkdir(parents=True, exist_ok=True)
+    ckpt_path = f"{cfg.train.checkpoint_dir}/best_{cfg.experiment_name}.pt"
 
     # SpatialBranch outputs 512-dim features — add a classification head on top
     backbone = SpatialBranch(cfg.backbone, feature_dim=512).to(device)
@@ -59,6 +61,9 @@ def run_spatial_only_baseline(cfg: Config, train_loader, val_loader, test_loader
     print(f"Training spatial-only baseline ({cfg.backbone.name}) for {epochs} epochs...")
     print(f"Train: {len(train_loader.dataset):,}  Val: {len(val_loader.dataset):,}")
 
+    best_val_acc = 0.0
+    patience_counter = 1
+
     for epoch in range(epochs):
         backbone.train()
         classifier.train()
@@ -66,7 +71,7 @@ def run_spatial_only_baseline(cfg: Config, train_loader, val_loader, test_loader
         pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs}", leave=False, unit="batch")
         for images, labels in pbar:
             images, labels = images.to(device), labels.to(device)
-            optimizer.zero_grad()
+            optimizer.zero_grad(set_to_none=True)
             with autocast(device_type=device.type, enabled=device.type == "cuda"):
                 features = backbone(images)
                 logits = classifier(features)
@@ -92,14 +97,30 @@ def run_spatial_only_baseline(cfg: Config, train_loader, val_loader, test_loader
         vl = torch.cat(val_logits)
         yl = torch.cat(val_labels)
         val_acc = binary_accuracy(vl, yl)
-        print(f"Epoch {epoch+1:>3}/{epochs} | "
-              f"train_loss={train_loss/len(train_loader):.4f} | "
-              f"val_acc={val_acc:.1%}")
+        print(f"Epoch {epoch + 1:>3}/{epochs} | "
+              f"train_loss={train_loss / len(train_loader):.4f} | "
+              f"val_acc={val_acc:.1%} | "
+              f"best={best_val_acc:.1%} | "
+              f"patience={patience_counter}/{patience}")
 
-    # Save checkpoint
-    ckpt_path = f"{cfg.train.checkpoint_dir}/best_{cfg.experiment_name}.pt"
-    torch.save({"backbone": backbone.state_dict(),
-                "classifier": classifier.state_dict()}, ckpt_path)
+        # Save best checkpoint and check early stopping
+        if val_acc > best_val_acc + 0.001:
+            best_val_acc = val_acc
+            patience_counter = 0
+            torch.save({"backbone": backbone.state_dict(),
+                        "classifier": classifier.state_dict()}, ckpt_path)
+            print(f"  ✓ New best saved ({best_val_acc:.1%})")
+        else:
+            patience_counter += 1
+            if patience_counter >= patience:
+                print(f"  Early stopping at epoch {epoch + 1} — best val_acc={best_val_acc:.1%}")
+                break
+
+    # Load best checkpoint for evaluation
+    checkpoint = torch.load(ckpt_path, map_location=device)
+    backbone.load_state_dict(checkpoint["backbone"])
+    classifier.load_state_dict(checkpoint["classifier"])
+
 
     # Final evaluation on test set if provided, otherwise use val set
     eval_loader = test_loader if test_loader is not None else val_loader

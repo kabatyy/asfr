@@ -39,7 +39,7 @@ def train_one_epoch(model, loader, optimizer, aux_loss_fn,
     pbar = tqdm(loader, desc=f"Epoch {epoch+1}", leave=False, unit="batch")
     for images, labels in pbar:
         images, labels = images.to(device), labels.to(device)
-        optimizer.zero_grad()
+        optimizer.zero_grad(set_to_none=True)
 
         with autocast(device_type=device.type, enabled=device.type == "cuda"):
             outputs = model(images, training=True)
@@ -162,14 +162,16 @@ def train(cfg: Config, train_loader, val_loader, test_loader=None):
     Path(cfg.train.checkpoint_dir).mkdir(parents=True, exist_ok=True)
 
     model  = ASFRModel(cfg).to(device)
+    backbone_params = list(model.spatial_branch.backbone.parameters())
+    other_params = [p for p in model.parameters()
+                    if not any(p is bp for bp in backbone_params)]
+
+    model  = torch.compile(model)  # MPS-compatible speedup
     scaler = GradScaler(enabled=device.type == "cuda")
 
     # Differential learning rates:
     # Pretrained backbone uses a smaller lr to preserve learned features.
     # All other components (projection, freq branch, fusion, head) use full lr.
-    backbone_params = list(model.spatial_branch.backbone.parameters())
-    other_params    = [p for p in model.parameters()
-                       if not any(p is bp for bp in backbone_params)]
     optimizer = optim.AdamW([
         {"params": backbone_params, "lr": cfg.train.backbone_lr},
         {"params": other_params,    "lr": cfg.train.lr},
@@ -179,7 +181,10 @@ def train(cfg: Config, train_loader, val_loader, test_loader=None):
     aux_loss_fn  = AuxiliaryLoss(cfg.loss)
     diversity_fn = DiversityRegulariser(weight=cfg.fusion.diversity_weight)
 
-    best_val_acc = 0.0
+    best_val_acc    = 0.0
+    patience        = getattr(cfg.train, "early_stopping_patience", 5)
+    patience_counter = 1
+    ckpt_path       = f"{cfg.train.checkpoint_dir}/best_{cfg.experiment_name}.pt"
 
     print(f"\n{'='*70}")
     print(f"Experiment: {cfg.experiment_name}")
@@ -205,7 +210,9 @@ def train(cfg: Config, train_loader, val_loader, test_loader=None):
               f"train_loss={train_log['total_loss']:.4f} | "
               f"val_acc={val_metrics['accuracy']:.1%} | "
               f"val_auc={val_metrics['auc_roc']:.3f} | "
-              f"val_f1={val_metrics['f1']:.3f}")
+              f"val_f1={val_metrics['f1']:.3f} | "
+              f"best={best_val_acc:.1%} | "
+              f"patience={patience_counter}/{patience}")
 
         # Scalar/gate logging
         if epoch % cfg.train.log_scalar_every_n_epochs == 0:
@@ -229,12 +236,17 @@ def train(cfg: Config, train_loader, val_loader, test_loader=None):
         for w in val_metrics.get("warnings", []):
             print(f"\n{w}")
 
-        # Checkpoint on best val accuracy
-        if val_metrics["accuracy"] > best_val_acc:
+        # Checkpoint + early stopping
+        if val_metrics["accuracy"] > best_val_acc + 0.001:
             best_val_acc = val_metrics["accuracy"]
-            torch.save(model.state_dict(),
-                       f"{cfg.train.checkpoint_dir}/best_{cfg.experiment_name}.pt")
+            patience_counter = 0
+            torch.save(model.state_dict(), ckpt_path)
             print(f"  -> Saved best val_acc={best_val_acc:.1%}")
+        else:
+            patience_counter += 1
+            if patience_counter >= patience:
+                print(f"  Early stopping at epoch {epoch+1} — best val_acc={best_val_acc:.1%}")
+                break
 
     print(f"\nTraining complete. Best val accuracy: {best_val_acc:.1%}")
     print("Results will be logged to CSV after full_evaluation().")
