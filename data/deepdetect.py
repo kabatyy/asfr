@@ -1,4 +1,6 @@
 """
+data/deepdetect.py — DeepDetect-2025 dataset loader.
+
 Dataset structure:
     data/raw/deep_detect/data/
         train/
@@ -20,6 +22,7 @@ from torch.utils.data import Dataset, DataLoader, random_split
 import torch
 from PIL import Image
 from data.transforms import get_transforms
+from torch.utils.data import Subset
 
 
 class DeepDetectDataset(Dataset):
@@ -91,7 +94,7 @@ def get_deepdetect_loaders(cfg):
         cfg.data.deepdetect_root, split="test", transform=test_tf
     )
 
-    # 85/15 train/val split — seeded for reproducibility
+    # 85/15 train/val split 
     n_total = len(full_train_ds)
     n_val   = int(n_total * cfg.data.val_split)
     n_train = n_total - n_val
@@ -100,10 +103,10 @@ def get_deepdetect_loaders(cfg):
         full_train_ds, [n_train, n_val], generator=generator
     )
 
-    # Val set uses clean test transforms — no augmentation
-    val_ds.dataset = DeepDetectDataset(
+    clean_train_ds = DeepDetectDataset(
         cfg.data.deepdetect_root, split="train", transform=test_tf
     )
+    val_ds = Subset(clean_train_ds, val_ds.indices)
 
     train_loader = DataLoader(
         train_ds, batch_size=cfg.data.batch_size, shuffle=True,
