@@ -38,6 +38,12 @@ class FrequencyConfig:
     srm_filters: bool = True       # prepend fixed SRM noise-residual filters
     cleaner_filters: int = 3       # number of conv filters in degradation-aware cleaner
 
+    def resolve_patch_size(self, image_size: int) -> int:
+        """Return appropriate patch size for the given image size."""
+        if image_size <= 32:
+            return 32  # full image — patch selection is a no-op anyway
+        return self.patch_size
+
 
 @dataclass
 class FusionConfig:

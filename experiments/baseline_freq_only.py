@@ -45,7 +45,11 @@ def run_freq_only_baseline(cfg: Config, train_loader, val_loader,
     Returns:
         Final accuracy (float).
     """
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device(
+        "cuda" if torch.cuda.is_available() else
+        "mps" if torch.backends.mps.is_available() else
+        "cpu"
+    )
     epochs = cfg.train.epochs
     eval_loader = test_loader if test_loader is not None else val_loader
 
