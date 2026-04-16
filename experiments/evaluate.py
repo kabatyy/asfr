@@ -54,7 +54,11 @@ def full_evaluation(cfg: Config, checkpoint_path: str, test_loader,
     Returns:
         Dict of all computed metrics.
     """
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device(
+        "cuda" if torch.cuda.is_available() else
+        "mps" if torch.backends.mps.is_available() else
+        "cpu"
+    )
 
     model = ASFRModel(cfg).to(device)
     model.load_state_dict(torch.load(checkpoint_path, map_location=device))

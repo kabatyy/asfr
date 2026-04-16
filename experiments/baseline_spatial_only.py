@@ -35,7 +35,11 @@ def run_spatial_only_baseline(cfg: Config, train_loader, val_loader, test_loader
     Returns:
         Test accuracy (float).
     """
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device(
+        "cuda" if torch.cuda.is_available() else
+        "mps" if torch.backends.mps.is_available() else
+        "cpu"
+    )
     print(f"Device: {device}")
 
     epochs = cfg.train.epochs

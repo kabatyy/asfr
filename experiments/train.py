@@ -151,7 +151,11 @@ def train(cfg: Config, train_loader, val_loader, test_loader=None):
         val_loader:   Validation DataLoader — used for per-epoch monitoring
         test_loader:  Optional. If provided, runs final evaluation on test set.
     """
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device(
+        "cuda" if torch.cuda.is_available() else
+        "mps" if torch.backends.mps.is_available() else
+        "cpu"
+    )
     print(f"Device: {device}")
     if torch.cuda.is_available():
         print(f"GPU: {torch.cuda.get_device_name(0)}")
