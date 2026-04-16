@@ -11,6 +11,7 @@ spatial-only model gives a cleaner floor.
 """
 
 import torch
+from torch.amp import GradScaler, autocast
 from tqdm import tqdm
 import torch.nn as nn
 import torch.optim as optim
@@ -44,6 +45,7 @@ def run_spatial_only_baseline(cfg: Config, train_loader, val_loader, test_loader
     # SpatialBranch outputs 512-dim features — add a classification head on top
     backbone = SpatialBranch(cfg.backbone, feature_dim=512).to(device)
     classifier = nn.Linear(512, 2).to(device)
+    scaler = GradScaler(enabled=device.type == "cuda")
 
     params = list(backbone.parameters()) + list(classifier.parameters())
     criterion = nn.CrossEntropyLoss()
@@ -61,12 +63,15 @@ def run_spatial_only_baseline(cfg: Config, train_loader, val_loader, test_loader
         for images, labels in pbar:
             images, labels = images.to(device), labels.to(device)
             optimizer.zero_grad()
-            features = backbone(images)
-            logits = classifier(features)
-            loss = criterion(logits, labels)
-            loss.backward()
+            with autocast(device_type=device.type, enabled=device.type == "cuda"):
+                features = backbone(images)
+                logits = classifier(features)
+                loss = criterion(logits, labels)
+            scaler.scale(loss).backward()
+            scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(params, max_norm=1.0)
-            optimizer.step()
+            scaler.step(optimizer)
+            scaler.update()
             train_loss += loss.item()
         scheduler.step()
 
@@ -119,6 +124,4 @@ def run_spatial_only_baseline(cfg: Config, train_loader, val_loader, test_loader
     metrics = {"accuracy": acc, "auc_roc": auc, "f1": f1}
     save_results(cfg, metrics,
                  notes=f"spatial-only baseline, no freq branch, {cfg.backbone.name}")
-    print(f"Results saved to {cfg.train.results_dir}/results.csv")
-
     return acc
