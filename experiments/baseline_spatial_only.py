@@ -106,7 +106,7 @@ def run_spatial_only_baseline(cfg: Config, train_loader, val_loader, test_loader
         # Save best checkpoint and check early stopping
         if val_acc > best_val_acc + 0.001:
             best_val_acc = val_acc
-            patience_counter = 0
+            patience_counter = 1
             torch.save({"backbone": backbone.state_dict(),
                         "classifier": classifier.state_dict()}, ckpt_path)
             print(f"  ✓ New best saved ({best_val_acc:.1%})")

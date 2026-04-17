@@ -166,7 +166,11 @@ def train(cfg: Config, train_loader, val_loader, test_loader=None):
     other_params = [p for p in model.parameters()
                     if not any(p is bp for bp in backbone_params)]
 
-    model  = torch.compile(model)  # MPS-compatible speedup
+    if device.type == 'cuda':
+        model = torch.compile(model)
+        print("torch.compile enabled")
+    else:
+        print(f"torch.compile skipped — device is {device.type}")
     scaler = GradScaler(enabled=device.type == "cuda")
 
     # Differential learning rates:
