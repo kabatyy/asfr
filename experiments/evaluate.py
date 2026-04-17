@@ -190,5 +190,5 @@ def _print_report(results, cfg):
         for w in results["warnings"]:
             print(f"{w}")
     else:
-        print("\n  No warning signs triggered. ✓")
+        print("\n  No warning signs triggered.")
     print("="*60)

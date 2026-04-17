@@ -19,6 +19,7 @@ HOW TO USE
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.amp import GradScaler, autocast
 from pathlib import Path
 from tqdm import tqdm
 from config import Config
@@ -58,6 +59,7 @@ def run_freq_only_baseline(cfg: Config, train_loader, val_loader,
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-4)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-6)
+    scaler    = GradScaler(enabled=device.type == "cuda")
 
     print(f"\n{'='*70}")
     print(f"Experiment: {cfg.experiment_name}")
@@ -77,10 +79,12 @@ def run_freq_only_baseline(cfg: Config, train_loader, val_loader,
         for images, labels in pbar:
             images, labels = images.to(device), labels.to(device)
             optimizer.zero_grad()
-            _, aux_logits, _ = model(images)
-            loss = criterion(aux_logits, labels)
-            loss.backward()
-            optimizer.step()
+            with autocast(device_type=device.type, enabled=device.type == "cuda"):
+                _, aux_logits, _ = model(images)
+                loss = criterion(aux_logits, labels)
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
             batch_loss = loss.item()
             total_loss += batch_loss
             pbar.set_postfix(loss=f"{batch_loss:.4f}")
@@ -135,16 +139,10 @@ def run_freq_only_baseline(cfg: Config, train_loader, val_loader,
 
     if acc >= 0.70:
         print("\nResult: PASS — frequency branch is capturing real signal (>= 70%).")
-        print("Safe to proceed to fusion experiments.")
     elif acc >= 0.60:
         print("\nResult: WEAK — frequency branch is below the 70% target (60-70%).")
-        print("Consider investigating before fusion. You are not blocked.")
     else:
         print("\nResult: FAIL — frequency branch is below 60%.")
-        print("Do not proceed to fusion. Fix the FFT representation first.")
-
     metrics = {"accuracy": acc, "auc_roc": auc, "f1": f1}
     save_results(cfg, metrics, notes="freq-only baseline, no fusion, no spatial branch")
-    print(f"\nResults saved to {cfg.train.results_dir}/results.csv")
-
     return acc

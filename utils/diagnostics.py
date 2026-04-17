@@ -80,23 +80,23 @@ def check_warning_signs(
 
     if freq_only_acc is not None and freq_only_acc < 0.60:
         warnings.append(
-            f"UserWarning: Frequency-only accuracy is {freq_only_acc:.1%}, which is below "
+            f"Warning: Frequency-only accuracy is {freq_only_acc:.1%}, which is below "
             f"the 60% hard stop. The FFT representation is not capturing useful signal. "
             f"Check that fftshift=True, log-scaling is applied, and normalisation is "
-            f"correct. Do not proceed to fusion experiments until this is resolved."
+            f"correct."
         )
 
     if fused_acc is not None and spatial_only_acc is not None:
         if fused_acc <= spatial_only_acc:
             warnings.append(
-                f"UserWarning: Fused accuracy ({fused_acc:.1%}) is not higher than "
+                f"Warning: Fused accuracy ({fused_acc:.1%}) is not higher than "
                 f"spatial-only accuracy ({spatial_only_acc:.1%}). The frequency branch "
                 f"is not contributing. Check gradient norms and gate/scalar values."
             )
 
     if gate_entropy is not None and gate_entropy < 0.3:
         warnings.append(
-            f"UserWarning: Gate entropy is {gate_entropy:.3f} nats, below the 0.3 "
+            f"Warning: Gate entropy is {gate_entropy:.3f} nats, below the 0.3 "
             f"threshold. The gate is outputting near-constant values and is not adapting "
             f"per sample. Try increasing diversity_weight in config and retraining."
         )
