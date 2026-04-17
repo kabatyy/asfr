@@ -153,7 +153,7 @@ def train(cfg: Config, train_loader, val_loader, test_loader=None):
     """
     device = torch.device(
         "cuda" if torch.cuda.is_available() else
-        "mps" if torch.backends.mps.is_available() else
+        "mps"  if torch.backends.mps.is_available() else
         "cpu"
     )
     print(f"Device: {device}")
@@ -161,30 +161,43 @@ def train(cfg: Config, train_loader, val_loader, test_loader=None):
         print(f"GPU: {torch.cuda.get_device_name(0)}")
     Path(cfg.train.checkpoint_dir).mkdir(parents=True, exist_ok=True)
 
-    model  = ASFRModel(cfg).to(device)
-    backbone_params = list(model.spatial_branch.backbone.parameters())
-    other_params = [p for p in model.parameters()
-                    if not any(p is bp for bp in backbone_params)]
+    model = ASFRModel(cfg).to(device)
 
-    model  = torch.compile(model)  # MPS-compatible speedup
-    scaler = GradScaler(enabled=device.type == "cuda")
+    # Extract param groups BEFORE torch.compile — compiled model has different
+    # parameter objects and the groups would be lost
+    backbone_params = list(model.spatial_branch.backbone.parameters())
+    other_params    = [p for p in model.parameters()
+                       if not any(p is bp for bp in backbone_params)]
 
     # Differential learning rates:
-    # Pretrained backbone uses a smaller lr to preserve learned features.
-    # All other components (projection, freq branch, fusion, head) use full lr.
-    optimizer = optim.AdamW([
-        {"params": backbone_params, "lr": cfg.train.backbone_lr},
-        {"params": other_params,    "lr": cfg.train.lr},
-    ], weight_decay=cfg.train.weight_decay)
+    # Only apply if backbone_lr differs from lr — otherwise use single optimizer
+    if cfg.train.backbone_lr != cfg.train.lr:
+        optimizer = optim.AdamW([
+            {"params": backbone_params, "lr": cfg.train.backbone_lr},
+            {"params": other_params,    "lr": cfg.train.lr},
+        ], weight_decay=cfg.train.weight_decay)
+        print(f"Using differential lr: backbone={cfg.train.backbone_lr:.2e}, "
+              f"others={cfg.train.lr:.2e}")
+    else:
+        optimizer = optim.AdamW(model.parameters(), lr=cfg.train.lr,
+                                weight_decay=cfg.train.weight_decay)
+        print(f"Using single lr: {cfg.train.lr:.2e}")
+
+    # Compile for MPS speedup — FFT escapes compile via @torch.compiler.disable
+    # CUDA gets speedup from mixed precision instead
+    if device.type == "mps":
+        model = torch.compile(model)
+
+    scaler       = GradScaler(enabled=device.type == "cuda")
     scheduler    = optim.lr_scheduler.CosineAnnealingLR(
                        optimizer, T_max=cfg.train.epochs, eta_min=1e-6)
     aux_loss_fn  = AuxiliaryLoss(cfg.loss)
     diversity_fn = DiversityRegulariser(weight=cfg.fusion.diversity_weight)
 
-    best_val_acc    = 0.0
-    patience        = getattr(cfg.train, "early_stopping_patience", 5)
-    patience_counter = 1
-    ckpt_path       = f"{cfg.train.checkpoint_dir}/best_{cfg.experiment_name}.pt"
+    best_val_acc     = 0.0
+    patience         = getattr(cfg.train, "early_stopping_patience", 5)
+    patience_counter = 0
+    ckpt_path        = f"{cfg.train.checkpoint_dir}/best_{cfg.experiment_name}.pt"
 
     print(f"\n{'='*70}")
     print(f"Experiment: {cfg.experiment_name}")
@@ -238,14 +251,15 @@ def train(cfg: Config, train_loader, val_loader, test_loader=None):
 
         # Checkpoint + early stopping
         if val_metrics["accuracy"] > best_val_acc + 0.001:
-            best_val_acc = val_metrics["accuracy"]
+            best_val_acc     = val_metrics["accuracy"]
             patience_counter = 0
             torch.save(model.state_dict(), ckpt_path)
             print(f"  -> Saved best val_acc={best_val_acc:.1%}")
         else:
             patience_counter += 1
             if patience_counter >= patience:
-                print(f"  Early stopping at epoch {epoch+1} — best val_acc={best_val_acc:.1%}")
+                print(f"  Early stopping at epoch {epoch+1} — "
+                      f"best val_acc={best_val_acc:.1%}")
                 break
 
     print(f"\nTraining complete. Best val accuracy: {best_val_acc:.1%}")
