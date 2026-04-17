@@ -50,7 +50,7 @@ def main():
                             f"{'_frozen' if args.frozen else ''}")
 
     if args.dataset == "cifake":
-        train_loader, test_loader = get_cifake_loaders(cfg)
+        train_loader, val_loader, test_loader = get_cifake_loaders(cfg)
     else:
         from data.deepdetect import get_deepdetect_loaders
         train_loader, test_loader = get_deepdetect_loaders(
