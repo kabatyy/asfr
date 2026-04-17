@@ -18,8 +18,8 @@ def compute_log_fft(image: np.ndarray, fftshift: bool = True) -> np.ndarray:
     if fftshift:
         spectrum = np.fft.fftshift(spectrum)
     return np.log1p(np.abs(spectrum))
- 
- 
+
+@torch.compiler.disable
 def fft_spectrum_tensor(image_tensor: torch.Tensor, fftshift: bool = True) -> torch.Tensor:
     """
     Compute log-magnitude FFT spectrum for a batch of images.
