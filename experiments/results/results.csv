@@ -10,3 +10,8 @@ timestamp,experiment_name,fusion,backbone,frozen,dataset,image_size,epochs,freq_
 2026-04-16T22:44:46,vit_b_32_scalar,scalar,vit_b_32,False,cifake,32,50,0.5,0.3,0.1,0.9624,0.9934,0.9624,0.0,0.0,0.0,CIFAKE · vit_b_32 · scalar
 2026-04-17T09:15:45,vit_b_32_gating,gating,vit_b_32,False,cifake,32,50,0.5,0.3,0.1,0.9648,0.9946,0.9648,1.1906,0.5343,0.0022,CIFAKE · vit_b_32 · gating
 2026-04-17T10:07:00,vit_b_32_gating_frozen,gating,vit_b_32,True,cifake,32,50,0.5,0.3,0.1,0.9321,0.9817,0.9329,2.516,0.6861,0.0271,CIFAKE · vit_b_32 · gating_frozen
+2026-04-17T13:38:05,vit_b_16_spatial_only,joint_only,vit_b_16,False,cifake,32,50,0.5,0.3,0.1,0.9629,0.9942,0.9632,0.0,0.0,0.0,"spatial-only baseline, no freq branch, vit_b_16"
+2026-04-17T19:14:30,vit_b_16_joint_only,joint_only,vit_b_16,False,cifake,32,50,0.5,0.3,0.1,0.9681,0.9953,0.9682,0.0,0.0,0.0,CIFAKE · vit_b_16 · joint_only
+2026-04-17T20:16:47,vit_b_16_scalar,scalar,vit_b_16,False,cifake,32,50,0.5,0.3,0.1,0.958,0.9929,0.9583,0.0,0.0,0.0,CIFAKE · vit_b_16 · scalar
+2026-04-17T21:39:32,vit_b_16_gating,gating,vit_b_16,False,cifake,32,50,0.5,0.3,0.1,0.9673,0.9947,0.9674,1.499,0.555,0.0033,CIFAKE · vit_b_16 · gating
+2026-04-17T22:31:44,vit_b_16_gating_frozen,gating,vit_b_16,True,cifake,32,50,0.5,0.3,0.1,0.9292,0.9805,0.9308,2.4346,0.696,0.0209,CIFAKE · vit_b_16 · gating_frozen
