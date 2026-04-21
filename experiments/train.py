@@ -153,7 +153,7 @@ def train(cfg: Config, train_loader, val_loader, test_loader=None):
     """
     device = torch.device(
         "cuda" if torch.cuda.is_available() else
-        "mps"  if torch.backends.mps.is_available() else
+        "mps" if torch.backends.mps.is_available() else
         "cpu"
     )
     print(f"Device: {device}")
@@ -166,8 +166,15 @@ def train(cfg: Config, train_loader, val_loader, test_loader=None):
     # Extract param groups BEFORE torch.compile — compiled model has different
     # parameter objects and the groups would be lost
     backbone_params = list(model.spatial_branch.backbone.parameters())
-    other_params    = [p for p in model.parameters()
-                       if not any(p is bp for bp in backbone_params)]
+    other_params = [p for p in model.parameters()
+                    if not any(p is bp for bp in backbone_params)]
+
+    if device.type == 'cuda':
+        model = torch.compile(model)
+        print("torch.compile enabled")
+    else:
+        print(f"torch.compile skipped — device is {device.type}")
+    scaler = GradScaler(enabled=device.type == "cuda")
 
     # Differential learning rates:
     # Only apply if backbone_lr differs from lr — otherwise use single optimizer
