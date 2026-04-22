@@ -32,3 +32,4 @@ venv/
 # Compiled docs / temp files
 docs/*.tmp
 docs/~$*.docx
+*.db
