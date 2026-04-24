@@ -69,8 +69,12 @@ class FrequencyBranch(nn.Module):
         """
         # Step 1: select flattest patch per image (Chen et al. 2024)
         # Cleaner and SRM operate on the patch only, not the full image
-        patch_size = self.cfg.resolve_patch_size(x.shape[-1])
-        patch = select_flat_patch_batch(x, patch_size=patch_size)
+        # Dispatch to correct patch selector based on config
+        # v1 (default): variance-only — original behaviour, all CIFAKE experiments
+        # v2: brightness-filtered variance — better for face-dominated datasets
+        selector = getattr(self.cfg, "patch_selector", "v1")
+        if selector == "v2":
+            patch = select_flat_patch_batch(x, patch_size=self.cfg.patch_size)
 
         # Step 2: optional degradation-aware cleaner — operates on patch only
         if self.cleaner is not None:
@@ -92,7 +96,10 @@ class FrequencyBranch(nn.Module):
 
 
 
+# ---------------------------------------------------------------------------
 # SRM filter layer
+# ---------------------------------------------------------------------------
+
 class SRMFilterLayer(nn.Module):
     """
     Fixed Spatial Rich Model (SRM) filters — not learned, never updated.
@@ -110,6 +117,10 @@ class SRMFilterLayer(nn.Module):
 
     We use 3 standard SRM kernels applied to each of the 3 RGB channels,
     producing 9 output channels total.
+
+    Reference: Fridrich & Kodovsky (2012). "Rich Models for Steganalysis of
+    Digital Images." IEEE Trans. Information Forensics and Security.
+    Widely adopted for image forensics and AI detection tasks.
     """
 
     # Three standard SRM high-pass kernels (3x3)
@@ -159,7 +170,11 @@ class SRMFilterLayer(nn.Module):
         """
         return F.conv2d(x, self.weight, padding=1)
 
+
+# ---------------------------------------------------------------------------
 # Frequency CNN
+# ---------------------------------------------------------------------------
+
 class FrequencyCNN(nn.Module):
     """
     Lightweight CNN that processes the log-magnitude FFT spectrum after SRM filtering.
@@ -218,3 +233,90 @@ class FrequencyCNN(nn.Module):
         x = x.flatten(start_dim=1)  # (B, 128)
         x = self.proj(x)          # (B, feature_dim)
         return x
+
+
+# ---------------------------------------------------------------------------
+# FrequencyBranchV2 — v5 patch selector + phase FFT + original cleaner
+# ---------------------------------------------------------------------------
+
+class FrequencyBranchV2(nn.Module):
+    """
+    Improved frequency branch using:
+      - v5 skin-tone guided patch selector (patch_select_v5.py)
+      - Phase channel alongside log-magnitude (18ch input to CNN)
+      - Original DegradationAwareCleaner
+      - Receives clean_image separately — patch selected from unaugmented image
+
+    Used with ASFRModelV2 and get_deepdetect_dual_loaders.
+    All existing experiments use FrequencyBranch (unchanged).
+
+    Experimental results (DeepDetect, 30 epochs):
+      v1 patch, full aug:              63.2%
+      v5 patch, no aug:                72.0%
+      v5 patch, spatial aug only:      74.2%
+      v5 patch, spatial aug + cleaner: 75.0%  ← this class
+    """
+
+    def __init__(self, cfg: FrequencyConfig, feature_dim: int = 256):
+        super().__init__()
+        self.cfg         = cfg
+        self.feature_dim = feature_dim
+
+        # Original cleaner — lightweight, proven to help +0.8% at inference
+        self.cleaner = DegradationAwareCleaner(n_filters=3) \
+                       if cfg.cleaner_filters > 0 else None
+
+        # SRM filters — same as FrequencyBranch
+        self.srm = SRMFilterLayer() if cfg.srm_filters else nn.Identity()
+
+        # SRM gives 9ch, phase doubles to 18ch
+        srm_out_channels = 9 if cfg.srm_filters else 3
+        phase_channels   = srm_out_channels * 2  # log-mag + phase
+
+        self.cnn = FrequencyCNN(in_channels=phase_channels, feature_dim=feature_dim)
+        self.aux_head = nn.Linear(feature_dim, 2)
+
+    def _phase_fft(self, x: torch.Tensor) -> torch.Tensor:
+        """Log-magnitude + normalised phase concatenated. (B, 2C, H, W)"""
+        spectrum = torch.fft.fft2(x.float())
+        if self.cfg.use_fftshift:
+            spectrum = torch.fft.fftshift(spectrum, dim=(-2, -1))
+        log_mag = torch.log1p(torch.abs(spectrum))
+        mean = log_mag.mean(dim=(-2, -1), keepdim=True)
+        std  = log_mag.std(dim=(-2, -1), keepdim=True)
+        log_mag = (log_mag - mean) / (std + 1e-8)
+        phase = torch.angle(spectrum) / torch.pi   # normalised to [-1, 1]
+        return torch.cat([log_mag, phase], dim=1)
+
+    def forward(self, clean_x: torch.Tensor) -> tuple:
+        """
+        Args:
+            clean_x: (B, C, H, W) CLEAN unaugmented image tensor.
+                     Patch is selected from this — not the augmented image.
+                     Degradation augmentations must NOT have been applied to clean_x.
+
+        Returns:
+            features:   (B, feature_dim)
+            aux_logits: (B, 2)
+            patch:      (B, C, P, P)
+        """
+        from utils.patch_select_v5 import select_flat_patch_v5_batch
+
+        # Step 1: v5 skin-tone guided patch selection from clean image
+        patch = select_flat_patch_v5_batch(clean_x, patch_size=self.cfg.patch_size)
+
+        # Step 2: optional cleaner
+        if self.cleaner is not None:
+            patch = self.cleaner(patch)
+
+        # Step 3: SRM noise-residual filters
+        x_srm = self.srm(patch)
+
+        # Step 4: phase-augmented FFT (log-magnitude + phase)
+        x_fft = self._phase_fft(x_srm)
+
+        # Step 5: CNN
+        features   = self.cnn(x_fft)
+        aux_logits = self.aux_head(features)
+
+        return features, aux_logits, patch

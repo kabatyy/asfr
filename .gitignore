@@ -33,3 +33,4 @@ venv/
 docs/*.tmp
 docs/~$*.docx
 *.db
+.virtual_documents/

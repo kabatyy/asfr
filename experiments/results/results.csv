@@ -1,17 +1,45 @@
 timestamp,experiment_name,fusion,backbone,frozen,dataset,image_size,epochs,freq_aux_weight,spatial_aux_weight,diversity_weight,accuracy,auc_roc,f1,gate_entropy,gate_mean,gate_var,notes
 2026-04-12T20:19:45,freq_only_baseline,gating,convnext_base,False,cifake,32,20,0.5,0.3,0.1,0.9436,0.9871,0.9446,0.0,0.0,0.0,"freq-only baseline, no fusion, no spatial branch"
 2026-04-13T02:12:35,convnext_base_spatial_only,joint_only,convnext_base,False,cifake,32,50,0.5,0.3,0.1,0.9872,0.9983,0.9872,0.0,0.0,0.0,"spatial-only baseline, no freq branch, convnext_base"
-2026-04-13T04:37:13,convnext_base_joint_only,joint_only,convnext_base,False,cifake,32,50,0.5,0.3,0.1,0.9876,0.9985,0.9876,0.0,0.0,0.0,CIFAKE · convnext_base · joint_only
-2026-04-13T06:59:49,convnext_base_scalar,scalar,convnext_base,False,cifake,32,50,0.5,0.3,0.1,0.9868,0.9985,0.9868,0.0,0.0,0.0,CIFAKE · convnext_base · scalar
-2026-04-13T08:44:59,convnext_base_gating,gating,convnext_base,False,cifake,32,50,0.5,0.3,0.1,0.9888,0.9987,0.9888,0.959,0.3043,0.0014,CIFAKE · convnext_base · gating
-2026-04-13T09:02:10,convnext_base_gating_frozen,gating,convnext_base,True,cifake,32,50,0.5,0.3,0.1,0.9653,0.9948,0.9654,2.7965,0.5841,0.0502,CIFAKE · convnext_base · gating_frozen
+2026-04-13T04:37:13,convnext_base_joint_only,joint_only,convnext_base,False,cifake,32,50,0.5,0.3,0.1,0.9876,0.9985,0.9876,0.0,0.0,0.0,"CIFAKE · convnext_base · joint_only"
+2026-04-13T06:59:49,convnext_base_scalar,scalar,convnext_base,False,cifake,32,50,0.5,0.3,0.1,0.9868,0.9985,0.9868,0.0,0.0,0.0,"CIFAKE · convnext_base · scalar"
+2026-04-13T08:44:59,convnext_base_gating,gating,convnext_base,False,cifake,32,50,0.5,0.3,0.1,0.9888,0.9987,0.9888,0.959,0.3043,0.0014,"CIFAKE · convnext_base · gating"
+2026-04-13T09:02:10,convnext_base_gating_frozen,gating,convnext_base,True,cifake,32,50,0.5,0.3,0.1,0.9653,0.9948,0.9654,2.7965,0.5841,0.0502,"CIFAKE · convnext_base · gating_frozen"
 2026-04-16T20:22:01,vit_b_32_spatial_only,joint_only,vit_b_32,False,cifake,32,50,0.5,0.3,0.1,0.9464,0.9879,0.9464,0.0,0.0,0.0,"spatial-only baseline, no freq branch, vit_b_32"
-2026-04-16T21:27:05,vit_b_32_joint_only,joint_only,vit_b_32,False,cifake,32,50,0.5,0.3,0.1,0.9586,0.9923,0.9588,0.0,0.0,0.0,CIFAKE · vit_b_32 · joint_only
-2026-04-16T22:44:46,vit_b_32_scalar,scalar,vit_b_32,False,cifake,32,50,0.5,0.3,0.1,0.9624,0.9934,0.9624,0.0,0.0,0.0,CIFAKE · vit_b_32 · scalar
-2026-04-17T09:15:45,vit_b_32_gating,gating,vit_b_32,False,cifake,32,50,0.5,0.3,0.1,0.9648,0.9946,0.9648,1.1906,0.5343,0.0022,CIFAKE · vit_b_32 · gating
-2026-04-17T10:07:00,vit_b_32_gating_frozen,gating,vit_b_32,True,cifake,32,50,0.5,0.3,0.1,0.9321,0.9817,0.9329,2.516,0.6861,0.0271,CIFAKE · vit_b_32 · gating_frozen
+2026-04-16T21:27:05,vit_b_32_joint_only,joint_only,vit_b_32,False,cifake,32,50,0.5,0.3,0.1,0.9586,0.9923,0.9588,0.0,0.0,0.0,"CIFAKE · vit_b_32 · joint_only"
+2026-04-16T22:44:46,vit_b_32_scalar,scalar,vit_b_32,False,cifake,32,50,0.5,0.3,0.1,0.9624,0.9934,0.9624,0.0,0.0,0.0,"CIFAKE · vit_b_32 · scalar"
+2026-04-17T09:15:45,vit_b_32_gating,gating,vit_b_32,False,cifake,32,50,0.5,0.3,0.1,0.9648,0.9946,0.9648,1.1906,0.5343,0.0022,"CIFAKE · vit_b_32 · gating"
+2026-04-17T10:07:00,vit_b_32_gating_frozen,gating,vit_b_32,True,cifake,32,50,0.5,0.3,0.1,0.9321,0.9817,0.9329,2.516,0.6861,0.0271,"CIFAKE · vit_b_32 · gating_frozen"
 2026-04-17T13:38:05,vit_b_16_spatial_only,joint_only,vit_b_16,False,cifake,32,50,0.5,0.3,0.1,0.9629,0.9942,0.9632,0.0,0.0,0.0,"spatial-only baseline, no freq branch, vit_b_16"
-2026-04-17T19:14:30,vit_b_16_joint_only,joint_only,vit_b_16,False,cifake,32,50,0.5,0.3,0.1,0.9681,0.9953,0.9682,0.0,0.0,0.0,CIFAKE · vit_b_16 · joint_only
-2026-04-17T20:16:47,vit_b_16_scalar,scalar,vit_b_16,False,cifake,32,50,0.5,0.3,0.1,0.958,0.9929,0.9583,0.0,0.0,0.0,CIFAKE · vit_b_16 · scalar
-2026-04-17T21:39:32,vit_b_16_gating,gating,vit_b_16,False,cifake,32,50,0.5,0.3,0.1,0.9673,0.9947,0.9674,1.499,0.555,0.0033,CIFAKE · vit_b_16 · gating
-2026-04-17T22:31:44,vit_b_16_gating_frozen,gating,vit_b_16,True,cifake,32,50,0.5,0.3,0.1,0.9292,0.9805,0.9308,2.4346,0.696,0.0209,CIFAKE · vit_b_16 · gating_frozen
+2026-04-17T19:14:30,vit_b_16_joint_only,joint_only,vit_b_16,False,cifake,32,50,0.5,0.3,0.1,0.9681,0.9953,0.9682,0.0,0.0,0.0,"CIFAKE · vit_b_16 · joint_only"
+2026-04-17T20:16:47,vit_b_16_scalar,scalar,vit_b_16,False,cifake,32,50,0.5,0.3,0.1,0.958,0.9929,0.9583,0.0,0.0,0.0,"CIFAKE · vit_b_16 · scalar"
+2026-04-17T21:39:32,vit_b_16_gating,gating,vit_b_16,False,cifake,32,50,0.5,0.3,0.1,0.9673,0.9947,0.9674,1.499,0.555,0.0033,"CIFAKE · vit_b_16 · gating"
+2026-04-17T22:31:44,vit_b_16_gating_frozen,gating,vit_b_16,True,cifake,32,50,0.5,0.3,0.1,0.9292,0.9805,0.9308,2.4346,0.696,0.0209,"CIFAKE · vit_b_16 · gating_frozen"
+2026-04-13T01:11:51,dino_vits8_spatial_only,joint_only,dino_vits8,False,cifake,32,50,0.5,0.3,0.1,0.9818,0.9972,0.9819,0.0,0.0,0.0,"spatial-only baseline, no freq branch, dino_vits8"
+2026-04-13T02:43:58,dino_vits8_joint_only,joint_only,dino_vits8,False,cifake,32,50,0.5,0.3,0.1,0.9829,0.9981,0.9829,0.0,0.0,0.0,"CIFAKE · dino_vits8 · joint_only"
+2026-04-13T04:17:05,dino_vits8_scalar,scalar,dino_vits8,False,cifake,32,50,0.5,0.3,0.1,0.9835,0.9984,0.9835,0.0,0.0,0.0,"CIFAKE · dino_vits8 · scalar"
+2026-04-13T05:50:42,dino_vits8_gating,gating,dino_vits8,False,cifake,32,50,0.5,0.3,0.1,0.9829,0.9983,0.9829,1.7902,0.5349,0.0052,"CIFAKE · dino_vits8 · gating"
+2026-04-13T06:52:26,dino_vits8_gating_frozen,gating,dino_vits8,True,cifake,32,50,0.5,0.3,0.1,0.969,0.9958,0.9693,2.7787,0.6305,0.0764,"CIFAKE · dino_vits8 · gating_frozen"
+2026-04-22T00:00:00,dd_v2_convnext_base_spatial_only,joint_only,convnext_base,False,deepdetect,224,20,0.5,0.3,0.058,0.9611,0.9900,0.9611,0.0,0.0,0.0,"spatial-only baseline, no freq branch, convnext_base"
+2026-04-10T00:00:00,dd_convnext_base_spatial_only,joint_only,convnext_base,False,deepdetect,224,20,0.5,0.3,0.1,0.9610,0.9900,0.9610,0.0,0.0,0.0,"DeepDetect V1 spatial-only baseline"
+2026-04-10T00:00:00,dd_convnext_base_joint_only,joint_only,convnext_base,False,deepdetect,224,20,0.5,0.3,0.1,0.9702,0.9870,0.9702,0.0,0.0,0.0,"DeepDetect V1 · convnext_base · joint_only"
+2026-04-10T00:00:00,dd_convnext_base_scalar,scalar,convnext_base,False,deepdetect,224,20,0.5,0.3,0.1,0.9666,0.9880,0.9666,0.0,0.0,0.0,"DeepDetect V1 · convnext_base · scalar"
+2026-04-10T00:00:00,dd_convnext_base_gating,gating,convnext_base,False,deepdetect,224,20,0.5,0.3,0.1,0.9667,0.9880,0.9667,2.1180,0.5300,0.0000,"DeepDetect V1 · convnext_base · gating"
+2026-04-10T00:00:00,dd_convnext_base_gating_frozen,gating,convnext_base,True,deepdetect,224,20,0.5,0.3,0.1,0.9140,0.9670,0.9000,2.8970,0.5324,0.0000,"DeepDetect V1 · convnext_base · gating_frozen"
+2026-04-22T16:46:25,dd_v2_convnext_base_joint_only,joint_only,convnext_base,False,deepdetect,224,35,0.5,0.3,0.058,0.9718,0.9849,0.9711,0.0,0.0,0.0,"DeepDetect V2 · convnext_base · joint_only"
+2026-04-22T20:27:03,dd_v2_convnext_base_scalar,scalar,convnext_base,False,deepdetect,224,35,0.5,0.3,0.058,0.9692,0.9885,0.9687,0.0,0.0,0.0,"DeepDetect V2 · convnext_base · scalar"
+2026-04-23T00:05:54,dd_v2_convnext_base_gating,gating,convnext_base,False,deepdetect,224,35,0.5,0.3,0.058,0.9645,0.9879,0.9641,2.1788,0.5268,0.0597,"DeepDetect V2 · convnext_base · gating"
+2026-04-23T02:01:53,dd_v2_convnext_base_gating_frozen,gating,convnext_base,True,deepdetect,224,35,0.5,0.3,0.058,0.9061,0.9669,0.9,2.9492,0.5324,0.0836,"DeepDetect V2 · convnext_base · gating_frozen"
+2026-04-23T03:36:11,dd_v2_vit_b_32_spatial_only,joint_only,vit_b_32,False,deepdetect,224,20,0.5,0.3,0.058,0.9615,0.9834,0.9608,0.0,0.0,0.0,"spatial-only baseline, no freq branch, vit_b_32"
+2026-04-23T04:47:15,dd_v2_vit_b_16_spatial_only,joint_only,vit_b_16,False,deepdetect,224,20,0.5,0.3,0.058,0.9475,0.9863,0.9471,0.0,0.0,0.0,"spatial-only baseline, no freq branch, vit_b_16"
+2026-04-23T07:41:16,dd_v2_vit_b_32_joint_only,joint_only,vit_b_32,False,deepdetect,224,35,0.5,0.3,0.058,0.9656,0.9882,0.9648,0.0,0.0,0.0,"DeepDetect V2 · vit_b_32 · joint_only"
+2026-04-23T09:39:37,dd_v2_vit_b_16_joint_only,joint_only,vit_b_16,False,deepdetect,224,35,0.5,0.3,0.058,0.9112,0.9791,0.9145,0.0,0.0,0.0,"DeepDetect V2 · vit_b_16 · joint_only"
+2026-04-23T11:20:16,dd_v2_vit_b_32_scalar,scalar,vit_b_32,False,deepdetect,224,35,0.5,0.3,0.058,0.9618,0.9882,0.9611,0.0,0.0,0.0,"DeepDetect V2 · vit_b_32 · scalar"
+2026-04-23T14:25:55,dd_v2_vit_b_16_scalar,scalar,vit_b_16,False,deepdetect,224,35,0.5,0.3,0.058,0.9388,0.9812,0.9394,0.0,0.0,0.0,"DeepDetect V2 · vit_b_16 · scalar"
+2026-04-23T14:58:04,dd_v2_vit_b_32_gating,gating,vit_b_32,False,deepdetect,224,35,0.5,0.3,0.058,0.9599,0.9819,0.9593,1.2635,0.6758,0.0021,"DeepDetect V2 · vit_b_32 · gating"
+2026-04-23T17:57:35,dd_v2_vit_b_32_gating_frozen,gating,vit_b_32,True,deepdetect,224,35,0.5,0.3,0.058,0.8502,0.9481,0.8279,2.8911,0.5937,0.0745,"DeepDetect V2 · vit_b_32 · gating_frozen"
+2026-04-23T18:31:06,dd_v2_vit_b_16_gating,gating,vit_b_16,False,deepdetect,224,35,0.5,0.3,0.058,0.9546,0.9891,0.9544,0.9594,0.5826,0.0031,"DeepDetect V2 · vit_b_16 · gating"
+2026-04-23T20:21:23,dd_v2_vit_b_16_gating_frozen,gating,vit_b_16,True,deepdetect,224,35,0.5,0.3,0.058,0.8955,0.9623,0.8869,2.889,0.5952,0.0705,"DeepDetect V2 · vit_b_16 · gating_frozen"
+2026-04-24T04:09:37,dd_v2_dino_vits8_spatial_only,joint_only,dino_vits8,False,deepdetect,224,20,0.5,0.3,0.058,0.918,0.9619,0.9204,0.0,0.0,0.0,"spatial-only baseline, no freq branch, dino_vits8"
+2026-04-24T08:17:10,dd_v2_dino_vits8_joint_only,joint_only,dino_vits8,False,deepdetect,224,35,0.5,0.3,0.058,0.9439,0.9797,0.9442,0.0,0.0,0.0,DeepDetect V2 · dino_vits8 · joint_only
+2026-04-24T12:22:18,dd_v2_dino_vits8_scalar,scalar,dino_vits8,False,deepdetect,224,35,0.5,0.3,0.058,0.9658,0.9918,0.9653,0.0,0.0,0.0,DeepDetect V2 · dino_vits8 · scalar

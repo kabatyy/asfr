@@ -15,7 +15,7 @@ class DataConfig:
     batch_size: int = 64
     num_workers: int = 4
     # Training augmentations — all False by default, enable per experiment
-    jpeg_aug: bool = False               # JPEG compression (quality 70-90)
+    jpeg_aug: bool = True               # JPEG compression (quality 70-90)
     blur_aug: bool = False              # Gaussian blur (sigma 0.5-1.5)
     noise_aug: bool = False             # additive Gaussian noise (std 0.01-0.03)
     recompression_aug: bool = False     # resize down and back up (scale 0.5-0.75)
@@ -32,17 +32,12 @@ class DataConfig:
 
 @dataclass
 class FrequencyConfig:
-    patch_size: int = 56           # patch extracted for freq analysis
+    patch_size: int = 56
+    use_v2_pipeline: bool = False  # True = v5 patch + phase + dual-transform pipeline
     use_fftshift: bool = True      # CRITICAL: always True — moves DC to centre
     log_scale: bool = True         # log-magnitude of FFT spectrum
     srm_filters: bool = True       # prepend fixed SRM noise-residual filters
     cleaner_filters: int = 3       # number of conv filters in degradation-aware cleaner
-
-    def resolve_patch_size(self, image_size: int) -> int:
-        """Return appropriate patch size for the given image size."""
-        if image_size <= 32:
-            return 32  # full image — patch selection is a no-op anyway
-        return self.patch_size
 
 
 @dataclass
@@ -84,7 +79,7 @@ class BackboneConfig:
 @dataclass
 class TrainConfig:
     epochs: int = 50
-    backbone_lr: float = 1e-5          # separate lr for pretrained backbone
+    backbone_lr: float = 1e-5          # separate lr for pretrained backbone (differential lr)
     lr: float = 1e-4
     weight_decay: float = 1e-4
     seed: int = 42

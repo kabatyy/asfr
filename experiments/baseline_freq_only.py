@@ -76,7 +76,8 @@ def run_freq_only_baseline(cfg: Config, train_loader, val_loader,
         total_loss = 0.0
         pbar = tqdm(train_loader, desc=f"Epoch {epoch+1:>3}/{epochs}",
                     leave=False, unit="batch")
-        for images, labels in pbar:
+        for batch in pbar:
+            images, labels = batch[0], batch[-1]
             images, labels = images.to(device), labels.to(device)
             optimizer.zero_grad()
             with autocast(device_type=device.type, enabled=device.type == "cuda"):
@@ -94,7 +95,8 @@ def run_freq_only_baseline(cfg: Config, train_loader, val_loader,
         model.eval()
         val_logits, val_labels = [], []
         with torch.no_grad():
-            for images, labels in val_loader:
+            for batch in val_loader:
+                images, labels = batch[0], batch[-1]
                 _, aux_logits, _ = model(images.to(device))
                 val_logits.append(aux_logits.cpu())
                 val_labels.append(labels)
@@ -117,7 +119,8 @@ def run_freq_only_baseline(cfg: Config, train_loader, val_loader,
     model.eval()
     all_logits, all_labels = [], []
     with torch.no_grad():
-        for images, labels in eval_loader:
+        for batch in eval_loader:
+            images, labels = batch[0], batch[-1]
             _, aux_logits, _ = model(images.to(device))
             all_logits.append(aux_logits.cpu())
             all_labels.append(labels)
@@ -145,4 +148,121 @@ def run_freq_only_baseline(cfg: Config, train_loader, val_loader,
         print("\nResult: FAIL — frequency branch is below 60%.")
     metrics = {"accuracy": acc, "auc_roc": auc, "f1": f1}
     save_results(cfg, metrics, notes="freq-only baseline, no fusion, no spatial branch")
+    return acc
+
+
+def run_freq_only_baseline_v2(cfg, train_loader, val_loader,
+                               test_loader=None) -> float:
+    """
+    Freq-only baseline using FrequencyBranchV2 (v5 patch + phase + cleaner).
+    DataLoader must yield (aug_image, clean_image, label) 3-tuples —
+    use get_deepdetect_dual_loaders().
+
+    Args:
+        cfg:          Config instance
+        train_loader: from get_deepdetect_dual_loaders()
+        val_loader:   from get_deepdetect_dual_loaders()
+        test_loader:  optional, from get_deepdetect_dual_loaders()
+
+    Returns:
+        Final test accuracy (float)
+    """
+    from models.frequency_branch import FrequencyBranchV2
+    from torch.amp import GradScaler, autocast as _autocast
+
+    device      = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    epochs      = cfg.train.epochs
+    eval_loader = test_loader if test_loader is not None else val_loader
+
+    Path(cfg.train.checkpoint_dir).mkdir(parents=True, exist_ok=True)
+
+    model     = FrequencyBranchV2(cfg.frequency, feature_dim=256).to(device)
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-4)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-6)
+    scaler    = GradScaler(enabled=device.type == "cuda")
+
+    print(f"\n{'='*70}")
+    print(f"Experiment: {cfg.experiment_name} [V2 pipeline]")
+    print(f"Frequency-only V2 | Epochs: {epochs}")
+    print(f"Patch: v5 skin-tone | Phase FFT | Original cleaner")
+    print(f"Train: {len(train_loader.dataset):,}  Val: {len(val_loader.dataset):,}")
+    print(f"{'='*70}\n")
+
+    best_val_acc = 0.0
+
+    for epoch in range(epochs):
+        model.train()
+        total_loss = 0.0
+        for batch in train_loader:
+            # Unpack 3-tuple — freq branch uses clean_images
+            _, clean_images, labels = batch
+            clean_images, labels = clean_images.to(device), labels.to(device)
+            optimizer.zero_grad()
+            with _autocast(device_type=device.type, enabled=device.type == "cuda"):
+                _, aux_logits, _ = model(clean_images)
+                loss = criterion(aux_logits, labels)
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+            total_loss += loss.item()
+        scheduler.step()
+
+        model.eval()
+        val_logits, val_labels = [], []
+        with torch.no_grad():
+            for batch in val_loader:
+                _, clean_images, labels = batch
+                _, aux_logits, _ = model(clean_images.to(device))
+                val_logits.append(aux_logits.cpu())
+                val_labels.append(labels)
+        vl  = torch.cat(val_logits)
+        yl  = torch.cat(val_labels)
+        val_acc = binary_accuracy(vl, yl)
+
+        print(f"Epoch {epoch+1:>3}/{epochs} | "
+              f"train_loss={total_loss/len(train_loader):.4f} | "
+              f"val_acc={val_acc:.1%}")
+
+        if val_acc > best_val_acc:
+            best_val_acc = val_acc
+            torch.save(model.state_dict(),
+                       f"{cfg.train.checkpoint_dir}/best_{cfg.experiment_name}.pt")
+            print(f"  -> Saved best val_acc={best_val_acc:.1%}")
+
+    # Final evaluation
+    model.eval()
+    all_logits, all_labels = [], []
+    with torch.no_grad():
+        for batch in eval_loader:
+            _, clean_images, labels = batch
+            _, aux_logits, _ = model(clean_images.to(device))
+            all_logits.append(aux_logits.cpu())
+            all_labels.append(labels)
+
+    logits = torch.cat(all_logits)
+    labels = torch.cat(all_labels)
+    acc = binary_accuracy(logits, labels)
+    auc = binary_auc_roc(logits, labels)
+    f1  = binary_f1(logits, labels)
+
+    print(f"\nFrequency-only V2 final results:")
+    print(f"  Accuracy: {acc:.1%}")
+    print(f"  AUC-ROC:  {auc:.3f}")
+    print(f"  F1:       {f1:.3f}")
+
+    warnings = check_warning_signs(freq_only_acc=acc)
+    for w in warnings:
+        print(f"\n{w}")
+
+    if acc >= 0.70:
+        print("\nResult: PASS — frequency branch V2 capturing real signal (>= 70%).")
+    elif acc >= 0.60:
+        print("\nResult: WEAK — below 70% target.")
+    else:
+        print("\nResult: FAIL — below 60%.")
+
+    metrics = {"accuracy": acc, "auc_roc": auc, "f1": f1}
+    save_results(cfg, metrics,
+                 notes="freq-only V2 baseline — v5 patch, phase, original cleaner")
     return acc

@@ -44,9 +44,7 @@ def run_spatial_only_baseline(cfg: Config, train_loader, val_loader, test_loader
     print(f"Device: {device}")
 
     epochs = cfg.train.epochs
-    patience = getattr(cfg.train, "early_stopping_patience", 5)
     Path(cfg.train.checkpoint_dir).mkdir(parents=True, exist_ok=True)
-    ckpt_path = f"{cfg.train.checkpoint_dir}/best_{cfg.experiment_name}.pt"
 
     # SpatialBranch outputs 512-dim features — add a classification head on top
     backbone = SpatialBranch(cfg.backbone, feature_dim=512).to(device)
@@ -61,17 +59,15 @@ def run_spatial_only_baseline(cfg: Config, train_loader, val_loader, test_loader
     print(f"Training spatial-only baseline ({cfg.backbone.name}) for {epochs} epochs...")
     print(f"Train: {len(train_loader.dataset):,}  Val: {len(val_loader.dataset):,}")
 
-    best_val_acc = 0.0
-    patience_counter = 1
-
     for epoch in range(epochs):
         backbone.train()
         classifier.train()
         train_loss = 0.0
         pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs}", leave=False, unit="batch")
-        for images, labels in pbar:
+        for batch in pbar:
+            images, labels = (batch[0], batch[-1])  # handles 2-tuple and 3-tuple
             images, labels = images.to(device), labels.to(device)
-            optimizer.zero_grad(set_to_none=True)
+            optimizer.zero_grad()
             with autocast(device_type=device.type, enabled=device.type == "cuda"):
                 features = backbone(images)
                 logits = classifier(features)
@@ -89,7 +85,8 @@ def run_spatial_only_baseline(cfg: Config, train_loader, val_loader, test_loader
         classifier.eval()
         val_logits, val_labels = [], []
         with torch.no_grad():
-            for images, labels in val_loader:
+            for batch in val_loader:
+                images, labels = batch[0], batch[-1]
                 features = backbone(images.to(device))
                 logits = classifier(features)
                 val_logits.append(logits.cpu())
@@ -97,30 +94,14 @@ def run_spatial_only_baseline(cfg: Config, train_loader, val_loader, test_loader
         vl = torch.cat(val_logits)
         yl = torch.cat(val_labels)
         val_acc = binary_accuracy(vl, yl)
-        print(f"Epoch {epoch + 1:>3}/{epochs} | "
-              f"train_loss={train_loss / len(train_loader):.4f} | "
-              f"val_acc={val_acc:.1%} | "
-              f"best={best_val_acc:.1%} | "
-              f"patience={patience_counter}/{patience}")
+        print(f"Epoch {epoch+1:>3}/{epochs} | "
+              f"train_loss={train_loss/len(train_loader):.4f} | "
+              f"val_acc={val_acc:.1%}")
 
-        # Save best checkpoint and check early stopping
-        if val_acc > best_val_acc + 0.001:
-            best_val_acc = val_acc
-            patience_counter = 1
-            torch.save({"backbone": backbone.state_dict(),
-                        "classifier": classifier.state_dict()}, ckpt_path)
-            print(f"  ✓ New best saved ({best_val_acc:.1%})")
-        else:
-            patience_counter += 1
-            if patience_counter >= patience:
-                print(f"  Early stopping at epoch {epoch + 1} — best val_acc={best_val_acc:.1%}")
-                break
-
-    # Load best checkpoint for evaluation
-    checkpoint = torch.load(ckpt_path, map_location=device)
-    backbone.load_state_dict(checkpoint["backbone"])
-    classifier.load_state_dict(checkpoint["classifier"])
-
+    # Save checkpoint
+    ckpt_path = f"{cfg.train.checkpoint_dir}/best_{cfg.experiment_name}.pt"
+    torch.save({"backbone": backbone.state_dict(),
+                "classifier": classifier.state_dict()}, ckpt_path)
 
     # Final evaluation on test set if provided, otherwise use val set
     eval_loader = test_loader if test_loader is not None else val_loader
@@ -128,7 +109,8 @@ def run_spatial_only_baseline(cfg: Config, train_loader, val_loader, test_loader
     classifier.eval()
     all_logits, all_labels = [], []
     with torch.no_grad():
-        for images, labels in eval_loader:
+        for batch in eval_loader:
+            images, labels = batch[0], batch[-1]
             features = backbone(images.to(device))
             logits = classifier(features)
             all_logits.append(logits.cpu())

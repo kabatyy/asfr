@@ -192,3 +192,91 @@ def _print_report(results, cfg):
     else:
         print("\n  No warning signs triggered.")
     print("="*60)
+
+
+def full_evaluation_v2(cfg: Config, checkpoint_path: str, test_loader,
+                       dataset_type: str = "deepdetect",
+                       save_to_csv: bool = True) -> dict:
+    """
+    Load an ASFRModelV2 checkpoint and run full evaluation.
+    DataLoader must yield (aug_image, clean_image, label) 3-tuples.
+
+    Args:
+        cfg:             Config used for training
+        checkpoint_path: Path to saved model weights (.pt)
+        test_loader:     from get_deepdetect_dual_loaders()
+        dataset_type:    "deepdetect" or "cifake"
+        save_to_csv:     append results to results/results.csv
+
+    Returns:
+        Dict of all computed metrics
+    """
+    from models.full_model import ASFRModelV2
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    model = ASFRModelV2(cfg).to(device)
+    model.load_state_dict(torch.load(checkpoint_path, map_location=device))
+    model.eval()
+    print(f"Loaded checkpoint: {checkpoint_path}")
+
+    (all_joint_logits, all_spatial_logits, all_freq_logits,
+     all_labels, all_gate_values) = [], [], [], [], []
+
+    with torch.no_grad():
+        for batch in test_loader:
+            aug_images, clean_images, labels = batch
+            aug_images   = aug_images.to(device)
+            clean_images = clean_images.to(device)
+
+            # Inference — pass clean as aug too (no degradation at test time)
+            out_inf = model(clean_images, clean_images, training=False)
+            all_joint_logits.append(out_inf["joint_logits"].cpu())
+            all_labels.append(labels)
+
+            # Training pass for aux logits and gate values
+            out_train = model(aug_images, clean_images, training=True)
+            if out_train.get("spatial_aux_logits") is not None:
+                all_spatial_logits.append(out_train["spatial_aux_logits"].cpu())
+            if out_train.get("freq_aux_logits") is not None:
+                all_freq_logits.append(out_train["freq_aux_logits"].cpu())
+            if out_train.get("gate_values") is not None:
+                all_gate_values.append(out_train["gate_values"].cpu())
+
+    joint_logits = torch.cat(all_joint_logits)
+    labels       = torch.cat(all_labels)
+
+    results = {
+        "accuracy": binary_accuracy(joint_logits, labels),
+        "auc_roc":  binary_auc_roc(joint_logits, labels),
+        "f1":       binary_f1(joint_logits, labels),
+    }
+
+    if all_spatial_logits:
+        results["spatial_only_accuracy"] = binary_accuracy(
+            torch.cat(all_spatial_logits), labels)
+    if all_freq_logits:
+        results["freq_only_accuracy"] = binary_accuracy(
+            torch.cat(all_freq_logits), labels)
+    if "spatial_only_accuracy" in results:
+        results["delta"] = results["accuracy"] - results["spatial_only_accuracy"]
+
+    gate_entropy = None
+    if all_gate_values:
+        gate_tensor = torch.cat(all_gate_values)
+        results["gate_stats"] = gate_distribution_stats(gate_tensor)
+        gate_entropy = results["gate_stats"]["entropy"]
+
+    results["warnings"] = check_warning_signs(
+        freq_only_acc=results.get("freq_only_accuracy"),
+        fused_acc=results.get("accuracy"),
+        spatial_only_acc=results.get("spatial_only_accuracy"),
+        gate_entropy=gate_entropy,
+    )
+
+    _print_report(results, cfg)
+
+    if save_to_csv:
+        save_results(cfg, results)
+
+    return results

@@ -37,7 +37,8 @@ def train_one_epoch(model, loader, optimizer, aux_loss_fn,
     all_gate_values = []
 
     pbar = tqdm(loader, desc=f"Epoch {epoch+1}", leave=False, unit="batch")
-    for images, labels in pbar:
+    for batch in pbar:
+        images, labels = batch[0], batch[-1]
         images, labels = images.to(device), labels.to(device)
         optimizer.zero_grad(set_to_none=True)
 
@@ -101,7 +102,8 @@ def evaluate(model, loader, device, cfg):
     all_logits, all_labels, all_gate_values = [], [], []
 
     with torch.no_grad():
-        for images, labels in loader:
+        for batch in loader:
+            images, labels = batch[0], batch[-1]
             images, labels = images.to(device), labels.to(device)
             outputs = model(images, training=False)
             all_logits.append(outputs["joint_logits"].cpu())
@@ -109,8 +111,8 @@ def evaluate(model, loader, device, cfg):
 
         # Re-run with training=True to collect gate values
         if cfg.fusion.mode == "gating":
-            for images, labels in loader:
-                images = images.to(device)
+            for batch in loader:
+                images = batch[0].to(device)
                 outputs = model(images, training=True)
                 if "gate_values" in outputs:
                     all_gate_values.append(outputs["gate_values"].cpu())
@@ -153,7 +155,7 @@ def train(cfg: Config, train_loader, val_loader, test_loader=None):
     """
     device = torch.device(
         "cuda" if torch.cuda.is_available() else
-        "mps" if torch.backends.mps.is_available() else
+        "mps"  if torch.backends.mps.is_available() else
         "cpu"
     )
     print(f"Device: {device}")
@@ -166,15 +168,8 @@ def train(cfg: Config, train_loader, val_loader, test_loader=None):
     # Extract param groups BEFORE torch.compile — compiled model has different
     # parameter objects and the groups would be lost
     backbone_params = list(model.spatial_branch.backbone.parameters())
-    other_params = [p for p in model.parameters()
-                    if not any(p is bp for bp in backbone_params)]
-
-    if device.type == 'cuda':
-        model = torch.compile(model)
-        print("torch.compile enabled")
-    else:
-        print(f"torch.compile skipped — device is {device.type}")
-    scaler = GradScaler(enabled=device.type == "cuda")
+    other_params    = [p for p in model.parameters()
+                       if not any(p is bp for bp in backbone_params)]
 
     # Differential learning rates:
     # Only apply if backbone_lr differs from lr — otherwise use single optimizer
@@ -203,7 +198,7 @@ def train(cfg: Config, train_loader, val_loader, test_loader=None):
 
     best_val_acc     = 0.0
     patience         = getattr(cfg.train, "early_stopping_patience", 5)
-    patience_counter = 0
+    patience_counter = 0   # fix: start at 0 not 1
     ckpt_path        = f"{cfg.train.checkpoint_dir}/best_{cfg.experiment_name}.pt"
 
     print(f"\n{'='*70}")
@@ -272,3 +267,158 @@ def train(cfg: Config, train_loader, val_loader, test_loader=None):
     print(f"\nTraining complete. Best val accuracy: {best_val_acc:.1%}")
     print("Results will be logged to CSV after full_evaluation().")
     return best_val_acc
+
+def train_v2(cfg: Config, train_loader, val_loader, test_loader=None):
+    """
+    Train the full ASFR model using the V2 pipeline (ASFRModelV2).
+    DataLoader must yield (aug_image, clean_image, label) 3-tuples —
+    use get_deepdetect_dual_loaders().
+ 
+    Spatial branch receives aug_image (full degradation augmentations).
+    Frequency branch receives clean_image (spatial aug only, no degradation).
+ 
+    Args:
+        cfg:          Config instance — set cfg.frequency.use_v2_pipeline = True
+        train_loader: from get_deepdetect_dual_loaders()
+        val_loader:   from get_deepdetect_dual_loaders()
+        test_loader:  optional
+    """
+    from models.full_model import ASFRModelV2
+ 
+    device = torch.device(
+        "cuda" if torch.cuda.is_available() else
+        "mps"  if torch.backends.mps.is_available() else
+        "cpu"
+    )
+    print(f"Device: {device}")
+    if torch.cuda.is_available():
+        print(f"GPU: {torch.cuda.get_device_name(0)}")
+    Path(cfg.train.checkpoint_dir).mkdir(parents=True, exist_ok=True)
+ 
+    model = ASFRModelV2(cfg).to(device)
+ 
+    backbone_params = list(model.spatial_branch.backbone.parameters())
+    other_params    = [p for p in model.parameters()
+                       if not any(p is bp for bp in backbone_params)]
+ 
+    if cfg.train.backbone_lr != cfg.train.lr:
+        optimizer = optim.AdamW([
+            {"params": backbone_params, "lr": cfg.train.backbone_lr},
+            {"params": other_params,    "lr": cfg.train.lr},
+        ], weight_decay=cfg.train.weight_decay)
+        print(f"Using differential lr: backbone={cfg.train.backbone_lr:.2e}, "
+              f"others={cfg.train.lr:.2e}")
+    else:
+        optimizer = optim.AdamW(model.parameters(), lr=cfg.train.lr,
+                                weight_decay=cfg.train.weight_decay)
+        print(f"Using single lr: {cfg.train.lr:.2e}")
+ 
+    if device.type == "mps":
+        model = torch.compile(model)
+ 
+    scaler       = GradScaler(enabled=device.type == "cuda")
+    scheduler    = optim.lr_scheduler.CosineAnnealingLR(
+                       optimizer, T_max=cfg.train.epochs, eta_min=1e-6)
+    aux_loss_fn  = AuxiliaryLoss(cfg.loss)
+    diversity_fn = DiversityRegulariser(weight=cfg.fusion.diversity_weight)
+ 
+    best_val_acc     = 0.0
+    patience         = getattr(cfg.train, "early_stopping_patience", 5)
+    patience_counter = 0
+    ckpt_path        = f"{cfg.train.checkpoint_dir}/best_{cfg.experiment_name}.pt"
+ 
+    print(f"\n{'='*70}")
+    print(f"Experiment: {cfg.experiment_name} [V2 pipeline]")
+    print(f"Backbone: {cfg.backbone.name} | Fusion: {cfg.fusion.mode} | "
+          f"Frozen: {cfg.backbone.frozen}")
+    print(f"Epochs: {cfg.train.epochs} | LR: {cfg.train.lr} | "
+          f"Batch: {cfg.data.batch_size}")
+    print(f"Spatial branch: full aug | Frequency branch: spatial aug only")
+    print(f"{'='*70}\n")
+ 
+    for epoch in range(cfg.train.epochs):
+        model.train()
+        total_loss      = 0.0
+        all_gate_values = []
+ 
+        pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}", leave=False, unit="batch")
+        for batch in pbar:
+            aug_images, clean_images, labels = batch
+            aug_images   = aug_images.to(device)
+            clean_images = clean_images.to(device)
+            labels       = labels.to(device)
+            optimizer.zero_grad(set_to_none=True)
+ 
+            with autocast(device_type=device.type, enabled=device.type == "cuda"):
+                outputs = model(aug_images, clean_images, training=True)
+ 
+                real_mask  = (labels == 0)
+                recon_loss = None
+                if real_mask.any() and model.freq_branch.cleaner is not None:
+                    recon_loss = model.freq_branch.cleaner.reconstruction_loss(
+                        outputs["freq_patches"][real_mask]
+                    )
+ 
+                losses = aux_loss_fn(
+                    joint_logits       = outputs["joint_logits"],
+                    labels             = labels,
+                    spatial_aux_logits = outputs.get("spatial_aux_logits"),
+                    freq_aux_logits    = outputs.get("freq_aux_logits"),
+                    cleaner_recon_loss = recon_loss,
+                )
+ 
+                if "gate_values" in outputs:
+                    diversity_penalty = diversity_fn(outputs["gate_values"].detach())
+                    losses["total"]   = losses["total"] + diversity_penalty
+                    all_gate_values.append(outputs["gate_values"].detach().cpu())
+ 
+            scaler.scale(losses["total"]).backward()
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            scaler.step(optimizer)
+            scaler.update()
+ 
+            batch_loss  = losses["total"].item()
+            total_loss += batch_loss
+            pbar.set_postfix(loss=f"{batch_loss:.4f}")
+ 
+        scheduler.step()
+ 
+        # Validation
+        model.eval()
+        all_logits, all_labels = [], []
+        with torch.no_grad():
+            for batch in val_loader:
+                _, clean_images, labels = batch
+                clean_images = clean_images.to(device)
+                labels       = labels.to(device)
+                # For val: pass clean as both aug and clean — no degradation
+                outputs = model(clean_images, clean_images, training=False)
+                all_logits.append(outputs["joint_logits"].cpu())
+                all_labels.append(labels.cpu())
+ 
+        logits  = torch.cat(all_logits)
+        labels_ = torch.cat(all_labels)
+        val_acc = binary_accuracy(logits, labels_)
+        val_auc = binary_auc_roc(logits, labels_)
+        val_f1  = binary_f1(logits, labels_)
+ 
+        print(f"Epoch {epoch+1:>3}/{cfg.train.epochs} | "
+              f"train_loss={total_loss/len(train_loader):.4f} | "
+              f"val_acc={val_acc:.1%} | val_auc={val_auc:.3f} | val_f1={val_f1:.3f} | "
+              f"best={best_val_acc:.1%} | patience={patience_counter}/{patience}")
+ 
+        # Track best val for reporting only — not used for checkpointing
+        if val_acc > best_val_acc:
+            best_val_acc = val_acc
+ 
+        # Save last epoch checkpoint — val set is inflated on DeepDetect
+        # and not a reliable signal for checkpointing. Last epoch gives the
+        # frequency branch the most time to learn.
+        torch.save(model.state_dict(), ckpt_path)
+        print(f"  -> Saved checkpoint (epoch {epoch+1}, val_acc={val_acc:.1%})")
+ 
+    print(f"\nTraining complete. Best val accuracy: {best_val_acc:.1%}")
+    print("Results will be logged to CSV after full_evaluation_v2().")
+    return best_val_acc
+ 
