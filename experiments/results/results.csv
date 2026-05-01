@@ -43,3 +43,5 @@ timestamp,experiment_name,fusion,backbone,frozen,dataset,image_size,epochs,freq_
 2026-04-24T04:09:37,dd_v2_dino_vits8_spatial_only,joint_only,dino_vits8,False,deepdetect,224,20,0.5,0.3,0.058,0.918,0.9619,0.9204,0.0,0.0,0.0,"spatial-only baseline, no freq branch, dino_vits8"
 2026-04-24T08:17:10,dd_v2_dino_vits8_joint_only,joint_only,dino_vits8,False,deepdetect,224,35,0.5,0.3,0.058,0.9439,0.9797,0.9442,0.0,0.0,0.0,DeepDetect V2 · dino_vits8 · joint_only
 2026-04-24T12:22:18,dd_v2_dino_vits8_scalar,scalar,dino_vits8,False,deepdetect,224,35,0.5,0.3,0.058,0.9658,0.9918,0.9653,0.0,0.0,0.0,DeepDetect V2 · dino_vits8 · scalar
+2026-04-24T16:28:32,dd_v2_dino_vits8_gating,gating,dino_vits8,False,deepdetect,224,35,0.5,0.3,0.058,0.962,0.9835,0.9616,1.5786,0.5606,0.0035,DeepDetect V2 · dino_vits8 · gating
+2026-04-24T18:32:13,dd_v2_dino_vits8_gating_frozen,gating,dino_vits8,True,deepdetect,224,35,0.5,0.3,0.058,0.8965,0.9466,0.893,2.8841,0.6102,0.0835,DeepDetect V2 · dino_vits8 · gating_frozen
