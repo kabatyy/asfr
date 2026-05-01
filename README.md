@@ -14,12 +14,6 @@ The three fusion strategies we benchmark, in order of complexity:
 
 ---
 
-## New to this project?
-
-Read the [Guide](docs/Guide.docx). It explains the repository structure, the experiment sequence, what to measure, and the failure modes to watch for.
-
----
-
 ## Requirements
 
 - Python 3.10+
@@ -77,8 +71,5 @@ asfr/
 │   ├── baseline_freq_only.py   # Frequency-only standalone (run FIRST)
 │   ├── train.py                # Training loop
 │   └── evaluate.py             # Full evaluation suite
-│
-└── docs/
-    └── Guide.pdf
 ```
 ---

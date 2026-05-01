@@ -1,0 +1,5 @@
+Strategy,Test Accuracy,Status
+v1 — variance only,58.2%,FAIL ✗
+v2 — brightness filtered,62.9%,WEAK
+v4 — high-pass FFT,57.3%,FAIL ✗
+v5 — skin tone guided,63.2%,WEAK
